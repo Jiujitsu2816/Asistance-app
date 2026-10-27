@@ -1,6 +1,7 @@
 package Software.ulpgc;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,21 +25,29 @@ public final class AttendanceService {
     }
 
     public Attendance checkIn(int employeeId, Place place) {
+        return checkInAt(employeeId, place, clock.instant());
+    }
+
+    Attendance checkInAt(int employeeId, Place place, Instant time) {
         Employe employee = requireEmployee(employeeId);
         if (sessions.stream().anyMatch(s -> s.employee().id() == employeeId && s.isOpen()))
             throw new IllegalStateException("Employee is already checked in");
-        Attendance attendance = new Attendance(employee, place, clock.instant(), null);
+        Attendance attendance = new Attendance(employee, place, time, null);
         sessions.add(attendance);
         return attendance;
     }
 
     public Attendance checkOut(int employeeId) {
+        return checkOutAt(employeeId, clock.instant());
+    }
+
+    Attendance checkOutAt(int employeeId, Instant time) {
         requireEmployee(employeeId);
         for (int i = 0; i < sessions.size(); i++) {
             Attendance current = sessions.get(i);
             if (current.employee().id() == employeeId && current.isOpen()) {
                 Attendance closed = new Attendance(current.employee(), current.place(),
-                        current.checkIn(), clock.instant());
+                        current.checkIn(), time);
                 sessions.set(i, closed);
                 return closed;
             }
