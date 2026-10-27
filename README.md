@@ -10,6 +10,13 @@ Use JDK 26, as configured in `pom.xml`. In IntelliJ IDEA, select that project SD
 and run `Software.ulpgc.Main`. The example checks an employee in and out immediately;
 it demonstrates the flow, not a full working day.
 
+## Tests
+
+Run `mvn test` with JDK 26, or run the JUnit tests in `src/test/java` from IntelliJ.
+The tests cover employee registration, check-in/check-out, worked duration,
+history, scheduled absences, working schedules, and time zones. Controlled clocks
+allow time-dependent rules to be checked without waiting for real deadlines.
+
 ## Design
 
 - `Employe`: employee identity and name (existing class name retained).
@@ -27,8 +34,6 @@ chosen time zone. The clock is injectable so tests can use predictable times.
 
 1. Add a console menu for registration, check-in, check-out, and history. Catch
    validation errors and display readable messages.
-2. Add tests for duplicate IDs, double check-in, check-out without check-in,
-   unknown employees, and worked duration using a controlled clock.
 3. Introduce a repository interface and SQLite storage so records survive restarts.
 4. Add daily/monthly reports, filtering sessions by dates in the company's time zone.
 5. Add a GUI only after the core flow and storage work.
