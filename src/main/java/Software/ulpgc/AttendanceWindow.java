@@ -54,7 +54,8 @@ public final class AttendanceWindow extends JFrame {
         login.addActionListener(event -> runAction(() -> {
             char[] secret = password.getPassword();
             try {
-                if (setup) broker.createFirstManager(username.getText(), secret);
+                if (setup && !"root".equals(username.getText().trim()))
+                    broker.createFirstManager(username.getText(), secret);
                 session = broker.login(username.getText(), secret);
             } finally {
                 Arrays.fill(secret, '\0');
@@ -81,6 +82,36 @@ public final class AttendanceWindow extends JFrame {
         JButton another = new JButton("Otra ventana");
         another.addActionListener(event -> new AttendanceWindow(broker).setVisible(true));
         actions.add(another);
+        if (broker.isRoot(session)) {
+            JButton backup = new JButton("Crear backup");
+            backup.addActionListener(event -> runAction(() -> {
+                var path = broker.createBackup(session);
+                JOptionPane.showMessageDialog(this, "Backup creado: " + path.getFileName()
+                        + "\nSe conservan las dos copias mas recientes.");
+            }));
+            actions.add(backup);
+            JButton reset = new JButton("Reset");
+            reset.addActionListener(event -> runAction(() -> {
+                int result = JOptionPane.showConfirmDialog(this,
+                        "Se borraran todos los usuarios excepto root, el historial y todos los backups.\n"
+                                + "La clave de root se conserva. Esta operacion no se puede deshacer.",
+                        "Reset de la aplicacion", JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
+                if (result != JOptionPane.OK_OPTION) return;
+                try {
+                    broker.resetApplication(session);
+                } finally {
+                    // Refresh every window, including sessions invalidated by the reset.
+                    for (Window window : Window.getWindows()) {
+                        if (window instanceof AttendanceWindow view && view.broker == broker && view.isDisplayable()) {
+                            view.broker.logout(view.session);
+                            view.session = null;
+                            view.showLogin();
+                        }
+                    }
+                }
+            }));
+            actions.add(reset);
+        }
         JButton logout = new JButton("Cerrar sesion");
         logout.addActionListener(event -> {
             broker.logout(session);
@@ -153,6 +184,7 @@ public final class AttendanceWindow extends JFrame {
         tabs.addTab("Solicitudes pendientes", requestReview(true));
         tabs.addTab("Registro de solicitudes y decisiones", requestReview(false));
         tabs.addTab("Alta de empleados", employeeRegistration());
+        tabs.addTab("Usuarios y claves", userManagement());
         return tabs;
     }
 
@@ -204,6 +236,48 @@ public final class AttendanceWindow extends JFrame {
             actions.add(deny);
         }
         rows.reload();
+        return panel;
+    }
+
+    private JComponent userManagement() {
+        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        DefaultTableModel users = model("Usuario", "Rol", "ID", "Nombre", "Apellidos");
+        JTable table = new JTable(users);
+        table.setAutoCreateRowSorter(true);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        panel.add(new JScrollPane(table), BorderLayout.CENTER);
+        Runnable reload = () -> {
+            users.setRowCount(0);
+            for (AttendanceBroker.UserInfo user : broker.allUsers(session)) {
+                Employe employee = user.employee();
+                users.addRow(new Object[]{user.username(), user.role(), employee == null ? "" : employee.id(),
+                        employee == null ? "" : employee.name(), employee == null ? "" : employee.lastname()});
+            }
+        };
+        JPanel actions = new JPanel();
+        JButton refresh = new JButton("Actualizar");
+        refresh.addActionListener(event -> runAction(reload::run));
+        JButton reset = new JButton("Restablecer clave");
+        reset.addActionListener(event -> runAction(() -> {
+            int selected = table.getSelectedRow();
+            if (selected < 0) throw new IllegalStateException("Selecciona un usuario");
+            String username = (String) users.getValueAt(table.convertRowIndexToModel(selected), 0);
+            JPasswordField password = new JPasswordField(20);
+            int result = JOptionPane.showConfirmDialog(this,
+                    new Object[]{"Nueva clave para " + username + " (minimo 8 caracteres)", password},
+                    "Restablecer clave", JOptionPane.OK_CANCEL_OPTION);
+            char[] secret = password.getPassword();
+            try {
+                if (result != JOptionPane.OK_OPTION) return;
+                broker.resetPassword(session, username, secret);
+                JOptionPane.showMessageDialog(this, "Clave actualizada. Las otras sesiones del usuario se han cerrado.");
+            } finally { Arrays.fill(secret, '\0'); password.setText(""); }
+        }));
+        actions.add(refresh);
+        actions.add(reset);
+        actions.add(new JLabel("Las claves se protegen con hash y no se pueden consultar."));
+        panel.add(actions, BorderLayout.SOUTH);
+        reload.run();
         return panel;
     }
 

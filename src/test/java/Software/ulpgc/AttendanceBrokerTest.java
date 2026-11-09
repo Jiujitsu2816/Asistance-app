@@ -15,6 +15,10 @@ public final class AttendanceBrokerTest {
 
     public static void main(String[] args) throws Exception {
         test("Configuracion inicial y autenticacion", AttendanceBrokerTest::authentication);
+        test("Recuperacion de usuarios y restablecimiento", AttendanceBrokerTest::recovery);
+        test("Root oculto y reset persistente", AttendanceBrokerTest::rootReset);
+        test("Rotacion de backups", AttendanceBrokerTest::backupRetention);
+        test("Reset fallido conserva cuentas y sesiones", AttendanceBrokerTest::failedReset);
         test("Permisos y cierre de sesion", AttendanceBrokerTest::authorization);
         test("Validacion del alta de empleados", AttendanceBrokerTest::registration);
         test("Solicitud pendiente separada del registro aprobado", AttendanceBrokerTest::pending);
@@ -30,6 +34,126 @@ public final class AttendanceBrokerTest {
         test("Registro corrupto no se sustituye", AttendanceBrokerTest::corruptFile);
         test("Las listas del registro son inmutables", AttendanceBrokerTest::immutableHistory);
         System.out.println("OK: " + passed + " pruebas");
+    }
+
+    private static void rootReset() throws Exception {
+        try (Fixture f = new Fixture()) {
+            approveEntry(f);
+            var credentials = f.broker.recoverUsers();
+            var root = f.broker.login("root", credentials.get("root").toCharArray());
+            var manager = f.broker.login("responsable", credentials.get("responsable").toCharArray());
+            var employee = f.broker.login("ana", credentials.get("ana").toCharArray());
+            equal(false, f.broker.needsSetup());
+            equal(2, f.broker.allUsers(manager).size());
+            check(f.broker.allUsers(manager).stream().noneMatch(u -> u.username().equals("root")), "Root oculto");
+            equal(3, f.broker.allUsers(root).size());
+            expect(IllegalArgumentException.class, () -> f.broker.resetPassword(manager, "root", PASSWORD));
+            expect(SecurityException.class, () -> f.broker.resetApplication(manager));
+            expect(SecurityException.class, () -> f.broker.resetApplication(employee));
+            expect(SecurityException.class, () -> f.broker.resetApplication(null));
+            Path unrelated = f.file.resolveSibling("otro.properties.backup-conservar");
+            Files.writeString(unrelated, "conservar");
+            f.broker.resetApplication(root);
+            equal(true, f.broker.needsSetup());
+            expect(SecurityException.class, () -> f.broker.allUsers(root));
+            expect(SecurityException.class, () -> f.broker.allUsers(manager));
+            expect(SecurityException.class, () -> f.broker.myRequests(employee));
+            equal(0L, backupCount(f.file));
+            check(Files.exists(unrelated), "No se borran copias de otros registros");
+            f.broker.close();
+            try (var reopened = new AttendanceBroker(f.file, f.clock)) {
+                equal(true, reopened.needsSetup());
+                var rootAgain = reopened.login("root", credentials.get("root").toCharArray());
+                equal(1, reopened.allUsers(rootAgain).size());
+                equal(List.of(), reopened.allRequests(rootAgain));
+                expect(SecurityException.class, () -> reopened.login("ana", credentials.get("ana").toCharArray()));
+                expect(IllegalArgumentException.class, () -> reopened.createFirstManager(" root ", PASSWORD));
+                reopened.createFirstManager("nuevo", PASSWORD);
+                equal(false, reopened.needsSetup());
+                var newManager = reopened.login("nuevo", PASSWORD);
+                equal(1, reopened.allUsers(newManager).size());
+                expect(IllegalStateException.class, () -> reopened.createFirstManager("otro", PASSWORD));
+                expect(IllegalArgumentException.class, () -> reopened.registerEmployee(newManager, "root", PASSWORD,
+                        new Employe("Otro", "Usuario", 1)));
+                reopened.registerEmployee(newManager, "empleado", PASSWORD, new Employe("Nuevo", "Empleado", 1));
+                reopened.requestCheckIn(reopened.login("empleado", PASSWORD), OFFICE);
+            }
+        }
+    }
+
+    private static long backupCount(Path file) throws IOException {
+        try (var paths = Files.list(file.getParent())) {
+            return paths.filter(p -> p.getFileName().toString().startsWith(file.getFileName() + ".backup-")).count();
+        }
+    }
+
+    private static void backupRetention() throws Exception {
+        try (Fixture f = new Fixture()) {
+            var credentials = f.broker.recoverUsers();
+            var root = f.broker.login("root", credentials.get("root").toCharArray());
+            for (int i = 0; i < 4; i++) {
+                Path old = f.file.resolveSibling(f.file.getFileName() + ".backup-old-" + i);
+                Files.writeString(old, "old");
+                Files.setLastModifiedTime(old, java.nio.file.attribute.FileTime.fromMillis(i));
+            }
+            Path first = f.broker.createBackup(root);
+            equal(2L, backupCount(f.file));
+            equal(Files.readString(f.file), Files.readString(first));
+            // Force deterministic ordering without sleeps.
+            try (var paths = Files.list(f.file.getParent())) {
+                for (Path p : paths.filter(p -> p.getFileName().toString().contains(".backup-")).toList())
+                    Files.setLastModifiedTime(p, java.nio.file.attribute.FileTime.fromMillis(p.equals(first) ? 2 : 1));
+            }
+            Path second = f.broker.createBackup(root);
+            equal(2L, backupCount(f.file));
+            check(Files.exists(first) && Files.exists(second), "Se conservan la copia nueva y la anterior");
+            f.broker.recoverUsers();
+            equal(2L, backupCount(f.file));
+        }
+    }
+
+    private static void failedReset() throws Exception {
+        try (Fixture f = new Fixture()) {
+            var credentials = f.broker.recoverUsers();
+            var root = f.broker.login("root", credentials.get("root").toCharArray());
+            long backups = backupCount(f.file);
+            Path saved = f.file.resolveSibling("saved.properties");
+            Files.move(f.file, saved);
+            Files.createDirectory(f.file);
+            Files.writeString(f.file.resolve("blocker"), "test");
+            expect(IOException.class, () -> f.broker.resetApplication(root));
+            equal(3, f.broker.allUsers(root).size());
+            equal(backups, backupCount(f.file));
+            equal(false, f.broker.needsSetup());
+            Files.delete(f.file.resolve("blocker"));
+            Files.delete(f.file);
+            Files.move(saved, f.file);
+        }
+    }
+
+    private static void recovery() throws Exception {
+        try (Fixture f = new Fixture()) {
+            approveEntry(f);
+            var history = f.broker.myHistory(f.employee);
+            expect(SecurityException.class, () -> f.broker.allUsers(f.employee));
+            expect(SecurityException.class, () -> f.broker.resetPassword(f.employee, "ana", PASSWORD));
+            expect(IllegalArgumentException.class, () -> f.broker.resetPassword(f.manager, "ana", new char[0]));
+            f.broker.resetPassword(f.manager, "ana", "nueva-clave".toCharArray());
+            expect(SecurityException.class, () -> f.broker.myHistory(f.employee));
+            expect(SecurityException.class, () -> f.broker.login("ana", PASSWORD));
+            equal(history, f.broker.myHistory(f.broker.login("ana", "nueva-clave".toCharArray())));
+            var credentials = f.broker.recoverUsers();
+            expect(SecurityException.class, () -> f.broker.allUsers(f.manager));
+            f.broker.close();
+            try (AttendanceBroker reopened = new AttendanceBroker(f.file, f.clock)) {
+                for (var entry : credentials.entrySet()) reopened.login(entry.getKey(), entry.getValue().toCharArray());
+                var root = reopened.login("root", credentials.get("root").toCharArray());
+                equal(3, reopened.allUsers(root).size());
+                equal(history, reopened.myHistory(reopened.login("ana", credentials.get("ana").toCharArray())));
+                String stored = Files.readString(f.file);
+                for (String password : credentials.values()) check(!stored.contains(password), "Clave protegida");
+            }
+        }
     }
 
     private static void authentication() throws Exception {

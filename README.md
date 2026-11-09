@@ -33,6 +33,26 @@ Usa **Actualizar** en las tablas para ver los cambios de otras ventanas.
 
 ## Acceso y registro
 
+Los responsables disponen de **Usuarios y claves** para listar todas las cuentas
+y restablecer sus claves. Las claves existentes no se pueden consultar.
+El cambio cierra las otras sesiones de la cuenta afectada.
+
+Si se pierde el acceso, cierra la aplicacion y ejecuta `Main` con el argumento
+`--recover-users` (opcionalmente seguido de la ruta del registro).
+Esta operacion local crea una copia de seguridad, conserva usuarios e historial,
+crea el administrador `root` y genera claves nuevas para todas las cuentas.
+Las nuevas claves se muestran una vez en la consola; guardalas antes de cerrarla.
+
+La cuenta `root` solo aparece en su propio listado de usuarios. Los demas
+responsables no pueden modificar su clave. Su nombre esta reservado.
+Solo `root` dispone de los botones **Crear backup** y **Reset**.
+Cada backup conserva la copia nueva y la anterior del mismo registro.
+El reset pide confirmacion y elimina los demas usuarios, todas las solicitudes
+y el historial, y todos los backups del registro. Conserva `root` y su clave,
+y cierra todas las sesiones. Si solo queda `root`, el inicio vuelve a mostrar
+el formulario para crear un responsable; tambien permite entrar con `root`
+escribiendo su usuario y su clave en ese mismo formulario.
+
 - El empleado solo puede consultar sus solicitudes, su asistencia y su total de horas.
   Su identidad se obtiene de la sesion, sin aceptar un ID ajeno desde la vista.
 - El responsable puede dar de alta empleados y revisar todas las solicitudes
@@ -57,7 +77,7 @@ Ejecuta el `main` de `Software.ulpgc.AttendanceBrokerTest` desde IntelliJ.
 Tambien puedes ejecutar `scripts/test.ps1 -JdkHome RUTA_AL_JDK_26` en un entorno
 que permita scripts PowerShell. Las pruebas no necesitan dependencias externas.
 
-Las 15 pruebas de integracion comprueban autenticacion y permisos, altas,
+Las 19 pruebas de integracion comprueban reset, rotacion de backups, recuperacion de acceso, autenticacion y permisos, altas,
 solicitudes pendientes, aprobaciones y denegaciones, fechas originales, suma de
 horas, aislamiento entre empleados, solicitudes invalidas, decisiones definitivas,
 persistencia, fallos al guardar, bloqueo entre procesos, registros corruptos e
