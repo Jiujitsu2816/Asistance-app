@@ -26,6 +26,7 @@ public final class AttendanceBroker implements AutoCloseable {
     private final Map<UUID, String> sessions = new HashMap<>();
     private List<AttendanceRequest> requests = new ArrayList<>();
     private AttendanceService attendance;
+    private List<Quadrant> quadrants = new ArrayList<>();
     private final FileChannel lockChannel;
     private final FileLock lock;
     private boolean closed;
@@ -43,7 +44,7 @@ public final class AttendanceBroker implements AutoCloseable {
             if (acquired == null) throw new IOException("El registro ya esta abierto. Usa Otra ventana en la aplicacion.");
             lock = acquired;
             load();
-            attendance = rebuild(requests);
+            replaceAttendance(rebuild(requests));
         } catch (IOException | RuntimeException exception) {
             lockChannel.close();
             throw exception;
@@ -86,7 +87,7 @@ public final class AttendanceBroker implements AutoCloseable {
         updated.put(username, account);
         save(updated, requests);
         accounts.put(username, account);
-        attendance = rebuild(requests);
+        replaceAttendance(rebuild(requests));
     }
 
     public record UserInfo(String username, Role role, Employe employee) { }
@@ -111,11 +112,12 @@ public final class AttendanceBroker implements AutoCloseable {
         Account root = requireRoot(session);
         var remaining = new LinkedHashMap<String, Account>();
         remaining.put(root.username, root);
-        save(remaining, List.of());
+        save(remaining, List.of(), List.of());
+        quadrants.clear();
         accounts.clear();
         accounts.putAll(remaining);
         requests = new ArrayList<>();
-        attendance = rebuild(requests);
+        replaceAttendance(rebuild(requests));
         sessions.clear();
         try {
             for (Path backup : backupFiles()) Files.delete(backup);
@@ -148,6 +150,12 @@ public final class AttendanceBroker implements AutoCloseable {
         for (Path path : previous) times.put(path, Files.getLastModifiedTime(path));
         previous.sort(Comparator.<Path, java.nio.file.attribute.FileTime>comparing(times::get).reversed()
                 .thenComparing(p -> p.getFileName().toString()));
+        // Files.copy may retain the source timestamp. Give each backup a distinct
+        // creation order, even when the clock is fixed or the source is unchanged.
+        Instant created = clock.instant();
+        if (!previous.isEmpty() && !created.isAfter(times.get(previous.getFirst()).toInstant()))
+            created = times.get(previous.getFirst()).toInstant().plusMillis(1);
+        Files.setLastModifiedTime(backup, java.nio.file.attribute.FileTime.from(created));
         for (int i = 1; i < previous.size(); i++) Files.delete(previous.get(i));
         return backup;
     }
@@ -243,7 +251,9 @@ public final class AttendanceBroker implements AutoCloseable {
             throw new IllegalStateException("Ya tienes una solicitud pendiente de revision");
         Instant now = clock.instant();
         // Validate without changing the approved history.
-        apply(rebuild(requests), account.employee.id(), place, type, now);
+        try (AttendanceService validation = rebuild(requests)) {
+            apply(validation, account.employee.id(), place, type, now);
+        }
         AttendanceRequest request = new AttendanceRequest(UUID.randomUUID(), account.employee, place,
                 type, now, AttendanceRequest.Status.PENDING, null, null, "");
         var updated = new ArrayList<>(requests);
@@ -289,9 +299,10 @@ public final class AttendanceBroker implements AutoCloseable {
                 old.requestedAt(), approve ? AttendanceRequest.Status.APPROVED : AttendanceRequest.Status.DENIED,
                 manager.username, clock.instant(), reason == null ? "" : reason.trim()));
         AttendanceService rebuilt = rebuild(updated);
-        save(accounts, updated);
+        try { save(accounts, updated); }
+        catch (IOException | RuntimeException exception) { rebuilt.close(); throw exception; }
         requests = updated;
-        attendance = rebuilt;
+        replaceAttendance(rebuilt);
     }
 
     private Account account(Session session) {
@@ -315,17 +326,52 @@ public final class AttendanceBroker implements AutoCloseable {
         if (closed) return;
         closed = true;
         sessions.clear();
+        attendance.close();
         try { lock.release(); }
         finally { lockChannel.close(); }
     }
 
     private AttendanceService rebuild(List<AttendanceRequest> source) {
-        AttendanceService service = new AttendanceService(clock);
+        AttendanceService service = new AttendanceService(clock, false);
         accounts.values().stream().filter(a -> a.employee != null).forEach(a -> service.registerEmployee(a.employee));
         for (AttendanceRequest request : source)
             if (request.status() == AttendanceRequest.Status.APPROVED)
                 apply(service, request.employee().id(), request.place(), request.type(), request.requestedAt());
+        quadrants.forEach(service::registerQuadrant);
         return service;
+    }
+
+    private void replaceAttendance(AttendanceService replacement) {
+        if (attendance != null) attendance.close();
+        attendance = replacement;
+    }
+
+    public synchronized void registerQuadrant(Session session, Quadrant quadrant) throws IOException {
+        requireRole(session, Role.MANAGER);
+        Objects.requireNonNull(quadrant);
+        if (accounts.values().stream().noneMatch(a -> quadrant.employe().equals(a.employee)))
+            throw new IllegalArgumentException("Empleado desconocido");
+        var updated = new ArrayList<>(quadrants);
+        if (updated.contains(quadrant)) return;
+        updated.add(quadrant);
+        save(accounts, requests, updated);
+        quadrants = updated;
+        replaceAttendance(rebuild(requests));
+    }
+
+    public synchronized List<Quadrant> allQuadrants(Session session) {
+        requireRole(session, Role.MANAGER);
+        return List.copyOf(quadrants);
+    }
+
+    public synchronized List<Missing> myMissing(Session session) {
+        return attendance.missingHistory(requireRole(session, Role.EMPLOYEE).employee.id());
+    }
+
+    public synchronized List<Missing> allMissing(Session session) {
+        requireRole(session, Role.MANAGER);
+        return accounts.values().stream().filter(a -> a.employee != null)
+                .flatMap(a -> attendance.missingHistory(a.employee.id()).stream()).toList();
     }
 
     private static void apply(AttendanceService service, int id, Place place, AttendanceRequest.Type type, Instant time) {
@@ -344,6 +390,10 @@ public final class AttendanceBroker implements AutoCloseable {
     }
 
     private void save(Map<String, Account> users, List<AttendanceRequest> items) throws IOException {
+        save(users, items, quadrants);
+    }
+
+    private void save(Map<String, Account> users, List<AttendanceRequest> items, List<Quadrant> schedules) throws IOException {
         Properties data = new Properties();
         data.setProperty("version", "1");
         data.setProperty("users", Integer.toString(users.size()));
@@ -375,6 +425,22 @@ public final class AttendanceBroker implements AutoCloseable {
                 data.setProperty(prefix + "decidedBy", r.decidedBy());
             }
         }
+        data.setProperty("quadrants", Integer.toString(schedules.size()));
+        for (int q = 0; q < schedules.size(); q++) {
+            Quadrant schedule = schedules.get(q);
+            String p = "quadrant." + q + ".";
+            writeEmployee(data, p, schedule.employe());
+            data.setProperty(p + "place", schedule.place().name());
+            data.setProperty(p + "placeType", schedule.place().type());
+            data.setProperty(p + "x", Integer.toString(schedule.place().x()));
+            data.setProperty(p + "y", Integer.toString(schedule.place().y()));
+            data.setProperty(p + "zone", schedule.zone().getId());
+            data.setProperty(p + "entries", Integer.toString(schedule.labor().size()));
+            for (int e = 0; e < schedule.labor().size(); e++) {
+                data.setProperty(p + "date." + e, schedule.labor().get(e).toString());
+                data.setProperty(p + "time." + e, schedule.timetable().get(e).toString());
+            }
+        }
         Files.createDirectories(file.getParent());
         Path temporary = Files.createTempFile(file.getParent(), "attendance-", ".tmp");
         try {
@@ -392,7 +458,7 @@ public final class AttendanceBroker implements AutoCloseable {
         try (InputStream input = Files.newInputStream(file)) { data.load(input); }
         try {
             if (!"1".equals(data.getProperty("version"))) throw new IllegalArgumentException("Version desconocida");
-            for (int i = 0; i < Integer.parseInt(data.getProperty("users")); i++) {
+            for (int i = 0, count = storedCount(data, "users", null); i < count; i++) {
                 String p = "user." + i + ".";
                 Role role = Role.valueOf(data.getProperty(p + "role"));
                 String username = Objects.requireNonNull(data.getProperty(p + "name"));
@@ -401,7 +467,7 @@ public final class AttendanceBroker implements AutoCloseable {
                         role == Role.EMPLOYEE ? readEmployee(data, p) : null);
                 if (accounts.putIfAbsent(username, account) != null) throw new IllegalArgumentException("Usuario duplicado");
             }
-            for (int i = 0; i < Integer.parseInt(data.getProperty("requests")); i++) {
+            for (int i = 0, count = storedCount(data, "requests", null); i < count; i++) {
                 String p = "request." + i + ".";
                 String decidedAt = data.getProperty(p + "decidedAt");
                 requests.add(new AttendanceRequest(UUID.fromString(data.getProperty(p + "id")), readEmployee(data, p),
@@ -411,7 +477,26 @@ public final class AttendanceBroker implements AutoCloseable {
                         AttendanceRequest.Status.valueOf(data.getProperty(p + "status")), data.getProperty(p + "decidedBy"),
                         decidedAt == null ? null : Instant.parse(decidedAt), data.getProperty(p + "reason")));
             }
+            for (int q = 0, count = storedCount(data, "quadrants", "0"); q < count; q++) {
+                String p = "quadrant." + q + ".";
+                var dates = new ArrayList<java.time.LocalDate>();
+                var times = new ArrayList<java.time.LocalTime>();
+                for (int e = 0, countEntries = storedCount(data, p + "entries", null); e < countEntries; e++) {
+                    dates.add(java.time.LocalDate.parse(data.getProperty(p + "date." + e)));
+                    times.add(java.time.LocalTime.parse(data.getProperty(p + "time." + e)));
+                }
+                quadrants.add(new Quadrant(readEmployee(data, p),
+                        new Place(data.getProperty(p + "place"), data.getProperty(p + "placeType"),
+                                Integer.parseInt(data.getProperty(p + "x")), Integer.parseInt(data.getProperty(p + "y"))),
+                        dates, times, java.time.ZoneId.of(data.getProperty(p + "zone"))));
+            }
         } catch (RuntimeException exception) { throw new IOException("El registro guardado no es valido", exception); }
+    }
+
+    private static int storedCount(Properties data, String key, String fallback) {
+        int count = Integer.parseInt(data.getProperty(key, fallback));
+        if (count < 0) throw new IllegalArgumentException("Recuento negativo: " + key);
+        return count;
     }
 
     private static void writeEmployee(Properties data, String prefix, Employe employee) {

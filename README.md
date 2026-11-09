@@ -77,6 +77,12 @@ Ejecuta el `main` de `Software.ulpgc.AttendanceBrokerTest` desde IntelliJ.
 Tambien puedes ejecutar `scripts/test.ps1 -JdkHome RUTA_AL_JDK_26` en un entorno
 que permita scripts PowerShell. Las pruebas no necesitan dependencias externas.
 
+Para ejecutar toda la suite con JUnit, usa `mvn test` o ejecuta los tests de
+`src/test/java` desde IntelliJ. Incluye tambien las 19 pruebas del broker,
+las reglas de asistencia y ausencias, y las regresiones de rotacion de backups
+y recuentos invalidos en el registro guardado. Maven necesita las dependencias
+JUnit declaradas en `pom.xml`; el script anterior solo ejecuta las pruebas del broker.
+
 Las 19 pruebas de integracion comprueban reset, rotacion de backups, recuperacion de acceso, autenticacion y permisos, altas,
 solicitudes pendientes, aprobaciones y denegaciones, fechas originales, suma de
 horas, aislamiento entre empleados, solicitudes invalidas, decisiones definitivas,

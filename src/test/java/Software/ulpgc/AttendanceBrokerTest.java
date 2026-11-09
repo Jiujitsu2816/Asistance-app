@@ -102,7 +102,7 @@ public final class AttendanceBrokerTest {
             // Force deterministic ordering without sleeps.
             try (var paths = Files.list(f.file.getParent())) {
                 for (Path p : paths.filter(p -> p.getFileName().toString().contains(".backup-")).toList())
-                    Files.setLastModifiedTime(p, java.nio.file.attribute.FileTime.fromMillis(p.equals(first) ? 2 : 1));
+                    Files.setLastModifiedTime(p, java.nio.file.attribute.FileTime.fromMillis(p.toAbsolutePath().equals(first) ? 2 : 1));
             }
             Path second = f.broker.createBackup(root);
             equal(2L, backupCount(f.file));

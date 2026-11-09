@@ -66,6 +66,26 @@ class AttendanceServiceTest {
         assertThrows(IllegalStateException.class, () -> service.checkOut(1));
     }
 
+    @Test void rejectsCheckInBeforePreviousCheckOut() {
+        service.checkIn(1, office);
+        clock.advance(Duration.ofHours(8));
+        Attendance closed = service.checkOut(1);
+        clock.advance(Duration.ofHours(-1));
+        assertThrows(IllegalArgumentException.class, () -> service.checkIn(1, office));
+        assertEquals(List.of(closed), service.history(1));
+    }
+
+    @Test void onTimeEntryCorrectsAbsenceDetectedBeforeEntryWasRecorded() {
+        service.scheduleMissing(1, office, entry);
+        clock.now = entry;
+        service.checkMissing();
+        assertEquals(1, service.missingHistory(1).size());
+        service.checkIn(1, office);
+        assertTrue(service.missingHistory(1).isEmpty());
+        service.checkMissing();
+        assertTrue(service.missingHistory(1).isEmpty());
+    }
+
     @Test void supportsMultipleSessionsAndSeparatesEmployees() {
         service.registerEmployee(new Employe("Luis", "Perez", 2));
         service.checkIn(1, office);

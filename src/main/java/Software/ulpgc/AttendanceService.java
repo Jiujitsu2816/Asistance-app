@@ -50,6 +50,10 @@ public final class AttendanceService implements AutoCloseable {
         Employe employee = requireEmployee(employeeId);
         if (sessions.stream().anyMatch(s -> s.employee().id() == employeeId && s.isOpen()))
             throw new IllegalStateException("Employee is already checked in");
+        Objects.requireNonNull(time, "Check-in time is required");
+        if (sessions.stream().anyMatch(s -> s.employee().id() == employeeId
+                && s.checkOut() != null && time.isBefore(s.checkOut())))
+            throw new IllegalArgumentException("Check-in cannot precede a previous check-out");
         Attendance attendance = new Attendance(employee, place, time, null);
         sessions.add(attendance);
         checkMissing();
@@ -107,9 +111,9 @@ public final class AttendanceService implements AutoCloseable {
     /** Also callable explicitly, for example when using a controlled clock. */
     public synchronized void checkMissing() {
         Instant now = clock.instant();
-        deadlines.removeIf(expected -> {
+        for (Missing expected : deadlines) {
             Instant deadline = expected.date().toInstant();
-            if (now.isBefore(deadline)) return false;
+            if (now.isBefore(deadline)) continue;
             ZoneId zone = deadlineZones.get(expected);
             LocalDate day = deadline.atZone(zone).toLocalDate();
             boolean checkedIn = sessions.stream().anyMatch(session ->
@@ -118,9 +122,10 @@ public final class AttendanceService implements AutoCloseable {
                             && session.checkIn().atZone(zone).toLocalDate().equals(day)
                             && !session.checkIn().isAfter(deadline));
             if (!checkedIn && !missing.contains(expected)) missing.add(expected);
-            deadlineZones.remove(expected);
-            return true;
-        });
+            // An on-time entry can be recorded after the deadline checker ran.
+            // Reconcile from the actual entry time so scheduling order has no effect.
+            if (checkedIn) missing.remove(expected);
+        }
     }
 
     public synchronized List<Missing> missingHistory(int employeeId) {

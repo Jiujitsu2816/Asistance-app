@@ -147,6 +147,7 @@ public final class AttendanceWindow extends JFrame {
         JTabbedPane tabs = new JTabbedPane();
         tabs.addTab("Mis solicitudes", table(requests));
         tabs.addTab("Mi registro de horas", table(history));
+        tabs.addTab("Mis ausencias", absenceView(false));
         panel.add(tabs, BorderLayout.CENTER);
         JLabel total = new JLabel();
         panel.add(total, BorderLayout.SOUTH);
@@ -183,6 +184,7 @@ public final class AttendanceWindow extends JFrame {
         JTabbedPane tabs = new JTabbedPane();
         tabs.addTab("Solicitudes pendientes", requestReview(true));
         tabs.addTab("Registro de solicitudes y decisiones", requestReview(false));
+        tabs.addTab("Horarios y ausencias", scheduleView());
         tabs.addTab("Alta de empleados", employeeRegistration());
         tabs.addTab("Usuarios y claves", userManagement());
         return tabs;
@@ -236,6 +238,85 @@ public final class AttendanceWindow extends JFrame {
             actions.add(deny);
         }
         rows.reload();
+        return panel;
+    }
+
+    private JComponent absenceView(boolean manager) {
+        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        DefaultTableModel rows = model("Empleado", "ID", "Lugar", "Entrada prevista");
+        panel.add(table(rows), BorderLayout.CENTER);
+        Runnable reload = () -> {
+            rows.setRowCount(0);
+            for (Missing item : manager ? broker.allMissing(session) : broker.myMissing(session))
+                rows.addRow(new Object[]{item.employe().name() + " " + item.employe().lastname(),
+                        item.employe().id(), item.place().name(), time(item.date().toInstant())});
+        };
+        JButton refresh = new JButton("Actualizar ausencias");
+        refresh.addActionListener(event -> runAction(reload::run));
+        panel.add(refresh, BorderLayout.SOUTH);
+        reload.run();
+        return panel;
+    }
+
+    private JComponent scheduleView() {
+        JPanel panel = new JPanel(new BorderLayout(8, 8));
+        JPanel form = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JComboBox<Employe> employee = new JComboBox<>();
+        employee.setRenderer(new DefaultListCellRenderer() {
+            @Override public Component getListCellRendererComponent(JList<?> list, Object value,
+                    int index, boolean selected, boolean focus) {
+                Object label = value instanceof Employe e ? e.id() + " - " + e.name() + " " + e.lastname() : value;
+                return super.getListCellRendererComponent(list, label, index, selected, focus);
+            }
+        });
+        Runnable loadEmployees = () -> {
+            employee.removeAllItems();
+            for (AttendanceBroker.UserInfo user : broker.allUsers(session))
+                if (user.employee() != null) employee.addItem(user.employee());
+        };
+        JButton refreshEmployees = new JButton("Actualizar empleados");
+        refreshEmployees.addActionListener(event -> runAction(loadEmployees::run));
+        JTextField place = new JTextField("Oficina principal", 12);
+        JTextField date = new JTextField(java.time.LocalDate.now().toString(), 10);
+        JTextField hour = new JTextField("09:00", 5);
+        JTextField zone = new JTextField(ZoneId.systemDefault().getId(), 14);
+        form.add(employee); form.add(refreshEmployees);
+        form.add(new JLabel("Lugar")); form.add(place);
+        form.add(new JLabel("Fecha AAAA-MM-DD")); form.add(date);
+        form.add(new JLabel("Hora HH:mm")); form.add(hour);
+        form.add(new JLabel("Zona")); form.add(zone);
+        JButton save = new JButton("Guardar horario");
+        form.add(save);
+        form.setPreferredSize(new Dimension(1000, 100));
+        panel.add(form, BorderLayout.NORTH);
+        DefaultTableModel schedules = model("Empleado", "ID", "Lugar", "Fecha", "Hora", "Zona");
+        Runnable reload = () -> {
+            schedules.setRowCount(0);
+            for (Quadrant q : broker.allQuadrants(session))
+                for (int i = 0; i < q.labor().size(); i++)
+                    schedules.addRow(new Object[]{q.employe().name(), q.employe().id(), q.place().name(),
+                            q.labor().get(i), q.timetable().get(i), q.zone()});
+        };
+        JTabbedPane tabs = new JTabbedPane();
+        JPanel schedulePanel = new JPanel(new BorderLayout());
+        schedulePanel.add(table(schedules), BorderLayout.CENTER);
+        JButton refresh = new JButton("Actualizar horarios");
+        refresh.addActionListener(event -> runAction(reload::run));
+        schedulePanel.add(refresh, BorderLayout.SOUTH);
+        tabs.addTab("Horarios", schedulePanel);
+        tabs.addTab("Ausencias", absenceView(true));
+        panel.add(tabs, BorderLayout.CENTER);
+        save.addActionListener(event -> runAction(() -> {
+            Employe selected = (Employe) employee.getSelectedItem();
+            if (selected == null) throw new IllegalStateException("Selecciona un empleado");
+            broker.registerQuadrant(session, new Quadrant(selected,
+                    new Place(place.getText().trim(), "Oficina", 0, 0),
+                    List.of(java.time.LocalDate.parse(date.getText().trim())),
+                    List.of(java.time.LocalTime.parse(hour.getText().trim())), ZoneId.of(zone.getText().trim())));
+            reload.run();
+        }));
+        loadEmployees.run();
+        reload.run();
         return panel;
     }
 
