@@ -23,7 +23,7 @@ public record OnCallSchedule(String id, String name, Duration tolerance, LocalTi
         id = Require.text(id, "id", 64);
         name = Require.text(name, "name", 80);
         tolerance = Schedule.validTolerance(tolerance);
-        Require.present(start, "start");
+        Require.minutePrecision(start, "start");
         Require.present(duration, "durationMinutes");
         Require.present(mode, "mode");
         Require.present(dates, "dates");

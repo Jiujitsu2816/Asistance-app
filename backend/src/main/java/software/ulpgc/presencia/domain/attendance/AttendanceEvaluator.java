@@ -41,6 +41,8 @@ import java.util.Optional;
 public final class AttendanceEvaluator {
     /** Una entrada fuera de horario abierta durante mas tiempo se considera salida pendiente. */
     public static final Duration MAX_UNSCHEDULED_OPEN = Duration.ofHours(16);
+    /** Una entrada hasta 2 h antes del inicio de un periodo se asocia a ese periodo. */
+    public static final Duration EARLY_ARRIVAL_WINDOW = Duration.ofHours(2);
     private static final DateTimeFormatter HOUR = DateTimeFormatter.ofPattern("HH:mm");
 
     private final ZoneId zone;
@@ -176,20 +178,34 @@ public final class AttendanceEvaluator {
             return new Plan(date, schedule, holiday, skipped, periods);
         }
 
+        /**
+         * Periodo con mayor solape. Si no se solapa con ninguno (entrada anticipada o recien
+         * fichada), el periodo que contiene la entrada o que empieza en las proximas
+         * {@link #EARLY_ARRIVAL_WINDOW}.
+         */
         private Planned bestPeriod(WorkSession session, List<Planned> candidates) {
-            Instant end = session.end().orElse(now);
+            Instant end = session.end().orElse(max(now, session.start()));
             Planned best = null;
             long bestOverlap = 0;
             for (Planned p : candidates) {
-                Instant from = max(session.start(), p.start());
-                Instant to = min(end, p.end());
-                long overlap = Duration.between(from, to).toSeconds();
+                long overlap = Duration.between(max(session.start(), p.start()), min(end, p.end())).toMillis();
                 if (overlap > bestOverlap) {
                     best = p;
                     bestOverlap = overlap;
                 }
             }
-            return best;
+            if (best != null) return best;
+            Planned nearest = null;
+            for (Planned p : candidates) {
+                boolean within = !session.start().isBefore(p.start().minus(EARLY_ARRIVAL_WINDOW))
+                        && session.start().isBefore(p.end());
+                if (within && (nearest == null || distance(session, p) < distance(session, nearest))) nearest = p;
+            }
+            return nearest;
+        }
+
+        private static long distance(WorkSession session, Planned p) {
+            return Math.abs(Duration.between(session.start(), p.start()).toMillis());
         }
 
         Planned currentPeriod(LocalDate today) {

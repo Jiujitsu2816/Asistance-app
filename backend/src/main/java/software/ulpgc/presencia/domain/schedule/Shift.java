@@ -9,7 +9,7 @@ import java.time.LocalTime;
 public record Shift(String label, LocalTime start, Duration duration) {
     public Shift {
         label = Require.text(label, "label", 40);
-        Require.present(start, "start");
+        Require.minutePrecision(start, "start");
         Require.present(duration, "durationMinutes");
         Require.that(duration.toMinutes() > 0 && duration.compareTo(Duration.ofHours(24)) <= 0,
                 "La duracion del turno debe estar entre 1 minuto y 24 horas");

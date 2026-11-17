@@ -25,6 +25,13 @@ public final class Require {
         return text(value, field, maxLength);
     }
 
+    /** Las horas de un horario se expresan en minutos exactos (HH:mm). */
+    public static java.time.LocalTime minutePrecision(java.time.LocalTime time, String field) {
+        present(time, field);
+        that(time.getSecond() == 0 && time.getNano() == 0, "La hora '" + field + "' debe tener formato HH:mm");
+        return time;
+    }
+
     public static void that(boolean condition, String message) {
         if (!condition) throw new InvalidDataException(message);
     }
