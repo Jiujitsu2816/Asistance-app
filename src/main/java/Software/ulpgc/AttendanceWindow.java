@@ -253,7 +253,10 @@ public final class AttendanceWindow extends JFrame {
         };
         JButton refresh = new JButton("Actualizar ausencias");
         refresh.addActionListener(event -> runAction(reload::run));
-        panel.add(refresh, BorderLayout.SOUTH);
+        JPanel footer = new JPanel(new BorderLayout());
+        footer.add(new JLabel("Sin entrada aprobada a tiempo en el lugar previsto: ausencia. Pulsa Actualizar para consultar."), BorderLayout.NORTH);
+        footer.add(refresh, BorderLayout.SOUTH);
+        panel.add(footer, BorderLayout.SOUTH);
         reload.run();
         return panel;
     }
@@ -279,23 +282,26 @@ public final class AttendanceWindow extends JFrame {
         JTextField place = new JTextField("Oficina principal", 12);
         JTextField date = new JTextField(java.time.LocalDate.now().toString(), 10);
         JTextField hour = new JTextField("09:00", 5);
+        JTextField end = new JTextField("17:00", 5);
         JTextField zone = new JTextField(ZoneId.systemDefault().getId(), 14);
         form.add(employee); form.add(refreshEmployees);
         form.add(new JLabel("Lugar")); form.add(place);
         form.add(new JLabel("Fecha AAAA-MM-DD")); form.add(date);
-        form.add(new JLabel("Hora HH:mm")); form.add(hour);
+        form.add(new JLabel("Desde HH:mm")); form.add(hour);
+        form.add(new JLabel("Hasta HH:mm")); form.add(end);
         form.add(new JLabel("Zona")); form.add(zone);
         JButton save = new JButton("Guardar horario");
         form.add(save);
         form.setPreferredSize(new Dimension(1000, 100));
         panel.add(form, BorderLayout.NORTH);
-        DefaultTableModel schedules = model("Empleado", "ID", "Lugar", "Fecha", "Hora", "Zona");
+        DefaultTableModel schedules = model("Empleado", "ID", "Lugar", "Fecha", "Desde", "Hasta", "Zona");
         Runnable reload = () -> {
             schedules.setRowCount(0);
             for (Quadrant q : broker.allQuadrants(session))
                 for (int i = 0; i < q.labor().size(); i++)
                     schedules.addRow(new Object[]{q.employe().name(), q.employe().id(), q.place().name(),
-                            q.labor().get(i), q.timetable().get(i), q.zone()});
+                            q.labor().get(i), q.timetable().get(i),
+                            q.endTimes().isEmpty() ? "Sin definir" : q.endTimes().get(i), q.zone()});
         };
         JTabbedPane tabs = new JTabbedPane();
         JPanel schedulePanel = new JPanel(new BorderLayout());
@@ -312,7 +318,8 @@ public final class AttendanceWindow extends JFrame {
             broker.registerQuadrant(session, new Quadrant(selected,
                     new Place(place.getText().trim(), "Oficina", 0, 0),
                     List.of(java.time.LocalDate.parse(date.getText().trim())),
-                    List.of(java.time.LocalTime.parse(hour.getText().trim())), ZoneId.of(zone.getText().trim())));
+                    List.of(java.time.LocalTime.parse(hour.getText().trim())),
+                    List.of(java.time.LocalTime.parse(end.getText().trim())), ZoneId.of(zone.getText().trim())));
             reload.run();
         }));
         loadEmployees.run();

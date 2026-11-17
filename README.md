@@ -31,6 +31,27 @@ aprobada antes de solicitar la salida. Una salida denegada deja la sesion abiert
 y permite volver a solicitarla. Las decisiones ya tomadas no se pueden modificar.
 Usa **Actualizar** en las tablas para ver los cambios de otras ventanas.
 
+## Horarios y ausencias
+
+En la vista del responsable, abre **Horarios y ausencias**. Selecciona un empleado,
+indica lugar, fecha, **Desde** y **Hasta** (por ejemplo, 09:00 a 17:00) y pulsa
+**Guardar horario**. Cada fila corresponde a una fecha; puedes guardar varias.
+La salida debe ser posterior a la entrada en el mismo dia. Los horarios antiguos
+se conservan y muestran **Sin definir** en la salida.
+
+Una ausencia (`Missing`) se calcula desde la hora de entrada prevista cuando no
+hay una entrada aprobada a tiempo para ese empleado y lugar. No se crea ninguna
+ausencia si no se ha guardado un horario. Una solicitud pendiente o denegada no
+cuenta como asistencia. Si se aprueba despues una solicitud enviada a tiempo,
+la ausencia desaparece; una entrada enviada tarde conserva la ausencia.
+La hora final delimita el horario guardado; actualmente no se calculan ausencias
+parciales por salida anticipada ni horas pendientes de trabajar.
+
+Consulta **Ausencias** como responsable o **Mis ausencias** como empleado y pulsa
+**Actualizar ausencias**. El lugar debe coincidir con el de la entrada.
+Los horarios se guardan en el registro y las ausencias se reconstruyen al abrirlo,
+incluso si la aplicacion estaba cerrada a la hora prevista.
+
 ## Acceso y registro
 
 Los responsables disponen de **Usuarios y claves** para listar todas las cuentas
@@ -95,6 +116,38 @@ inmutabilidad de los historiales. Sus datos de prueba se escriben en `target/`.
 - `Attendance`: sesion de trabajo aprobada con entrada, salida y duracion.
 - `AttendanceService`: reglas basicas de entrada, salida e historial.
 - `AttendanceRequest`: peticion con hora original, estado, responsable y motivo.
-- `AttendanceBroker`: autenticacion, permisos, revision de solicitudes y persistencia.
+- `AttendanceBroker`: coordina sesiones, permisos, cuentas y revision de solicitudes.
+- `AttendanceRepository`: contrato de lectura y guardado de un estado completo.
+- `AttendanceStore` / `PropertiesAttendanceStore`: almacenamiento exclusivo, guardado,
+  bloqueo del archivo y backups.
+- `AttendancePropertiesCodec`: conversion entre el estado y el formato Properties.
+- `AttendanceSnapshot` / `UserAccount`: estado inmutable y cuentas con claves protegidas.
+- `PasswordHasher` / `Pbkdf2PasswordHasher`: creacion y comprobacion de claves protegidas.
+- `AbsencePolicy` / `OnTimeEntryPolicy`: regla de cobertura de una entrada prevista.
 - `AttendanceWindow`: vistas del empleado y del responsable en Swing.
-- `Main`: punto de entrada y configuracion de la ruta del registro.
+- `Main`: punto de entrada, ruta del registro y composicion de dependencias.
+
+## Diseno y principios SOLID
+
+El broker depende de `AttendanceStore`, `PasswordHasher` y `AbsencePolicy`, recibidos
+por constructor. `Main` selecciona las implementaciones para archivos Properties,
+PBKDF2 y entradas a tiempo. El constructor `AttendanceBroker(Path, Clock)` se conserva
+para los clientes existentes. La vista llama al broker y no accede al archivo ni
+calcula permisos o ausencias.
+
+| Principio | Aplicacion en el proyecto |
+| --- | --- |
+| S: responsabilidad unica | El broker coordina los casos de uso; el codec conoce el formato; el store administra archivos y backups; el hasher protege claves; la politica decide si una entrada cubre el horario. |
+| O: abierto a extension | Se pueden proporcionar otro store, hasher o politica de ausencias sin modificar los casos de uso del broker. |
+| L: sustitucion | Un repositorio sustituto debe conservar el estado anterior si falla el guardado. Un store mantiene acceso exclusivo hasta cerrarse y rechaza operaciones posteriores; cerrar dos veces es valido. |
+| I: segregacion de interfaces | `AttendanceRepository` solo ofrece cargar/guardar; `AttendanceStore` agrega las operaciones de administracion que necesita el broker. Las claves y las ausencias tienen contratos separados. |
+| D: inversion de dependencias | La coordinacion usa contratos; las implementaciones concretas se eligen en `Main`. `Clock` se inyecta para reproducir fechas en las pruebas. |
+
+El guardado recibe un `AttendanceSnapshot` inmutable. El broker publica los cambios
+en memoria despues de guardar. El formato de archivo version 1, las claves PBKDF2,
+los horarios antiguos sin salida y las reglas de aprobacion se conservan.
+El broker es propietario del store inyectado y lo cierra tambien si falla la carga.
+
+Las pruebas de arquitectura comprueban sustitucion del store, hasher y politica,
+fallos de carga y guardado, inmutabilidad del estado, lectura de horarios antiguos
+y cierre del almacenamiento. Se ejecutan junto con las pruebas funcionales en JUnit.

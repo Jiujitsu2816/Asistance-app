@@ -11,6 +11,16 @@ class QuadrantTest {
     private final Employe employee = new Employe("Ana", "Garcia", 1);
     private final Place office = new Place("Office", "Office", 0, 0);
 
+    @Test void rejectsInvalidShiftEndTimes() {
+        for (LocalTime end : List.of(LocalTime.of(8, 0), LocalTime.of(9, 0)))
+            assertThrows(IllegalArgumentException.class, () -> new Quadrant(employee, office,
+                    List.of(LocalDate.of(2026, 10, 27)), List.of(LocalTime.of(9, 0)),
+                    List.of(end), ZoneOffset.UTC));
+        assertThrows(IllegalArgumentException.class, () -> new Quadrant(employee, office,
+                List.of(LocalDate.of(2026, 10, 27)), List.of(LocalTime.of(9, 0)),
+                List.of(LocalTime.NOON, LocalTime.NOON), ZoneOffset.UTC));
+    }
+
     @Test void convertsSummerAndWinterEntryTimes() {
         Quadrant quadrant = new Quadrant(employee, office,
                 List.of(LocalDate.of(2026, 7, 1), LocalDate.of(2026, 12, 1)),

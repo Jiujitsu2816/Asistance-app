@@ -12,6 +12,38 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Includes the dependency-free broker scenarios in Maven and IDE test runs. */
 class AttendanceBrokerIntegrationTest {
+    @Test void shiftAndAbsenceSurviveRestartAndApprovalReconcilesOriginalEntry() throws Exception {
+        var directory = Files.createTempDirectory(Path.of("target"), "shift-");
+        var file = directory.resolve("attendance.properties");
+        var before = Clock.fixed(Instant.parse("2026-10-27T08:59:00Z"), ZoneOffset.UTC);
+        var after = Clock.fixed(Instant.parse("2026-10-27T17:01:00Z"), ZoneOffset.UTC);
+        var employee = new Employe("Ana", "Garcia", 1);
+        var office = new Place("Office", "Office", 0, 0);
+        var shift = new Quadrant(employee, office, List.of(LocalDate.of(2026, 10, 27)),
+                List.of(LocalTime.of(9, 0)), List.of(LocalTime.of(17, 0)), ZoneOffset.UTC);
+        try (var broker = new AttendanceBroker(file, before)) {
+            broker.createFirstManager("manager", "test-password".toCharArray());
+            var manager = broker.login("manager", "test-password".toCharArray());
+            broker.registerEmployee(manager, "ana", "test-password".toCharArray(), employee);
+            broker.registerQuadrant(manager, shift);
+            assertTrue(broker.allMissing(manager).isEmpty());
+            var ana = broker.login("ana", "test-password".toCharArray());
+            broker.requestCheckIn(ana, office);
+        }
+        try (var broker = new AttendanceBroker(file, after)) {
+            var manager = broker.login("manager", "test-password".toCharArray());
+            var ana = broker.login("ana", "test-password".toCharArray());
+            assertEquals(List.of(shift), broker.allQuadrants(manager));
+            assertEquals(1, broker.myMissing(ana).size());
+            broker.decide(manager, broker.pendingRequests(manager).getFirst().id(), true, "");
+            assertTrue(broker.myMissing(ana).isEmpty());
+        }
+        try (var broker = new AttendanceBroker(file, after)) {
+            var manager = broker.login("manager", "test-password".toCharArray());
+            assertTrue(broker.allMissing(manager).isEmpty());
+        }
+    }
+
     @Test void backupRotationKeepsThePreviousCopyWhenSourceHasNotChanged() throws Exception {
         var directory = Files.createTempDirectory(Path.of("target"), "rotation-");
         try (var broker = new AttendanceBroker(directory.resolve("attendance.properties"), Clock.systemUTC())) {

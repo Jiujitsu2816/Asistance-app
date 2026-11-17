@@ -2,7 +2,6 @@ package Software.ulpgc;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -17,6 +16,7 @@ import java.util.concurrent.TimeUnit;
 /** In-memory attendance management for a single-user application. */
 public final class AttendanceService implements AutoCloseable {
     private final Clock clock;
+    private final AbsencePolicy absencePolicy;
     private final Map<Integer, Employe> employees = new HashMap<>();
     private final List<Attendance> sessions = new ArrayList<>();
     private final List<Missing> missing = new ArrayList<>();
@@ -27,7 +27,12 @@ public final class AttendanceService implements AutoCloseable {
     public AttendanceService(Clock clock) { this(clock, true); }
 
     AttendanceService(Clock clock, boolean automatic) {
+        this(clock, automatic, new OnTimeEntryPolicy());
+    }
+
+    public AttendanceService(Clock clock, boolean automatic, AbsencePolicy absencePolicy) {
         this.clock = Objects.requireNonNull(clock, "Clock is required");
+        this.absencePolicy = Objects.requireNonNull(absencePolicy, "Absence policy is required");
         scheduler = automatic ? Executors.newSingleThreadScheduledExecutor(task -> {
             Thread thread = new Thread(task, "attendance-missing");
             thread.setDaemon(true);
@@ -111,16 +116,12 @@ public final class AttendanceService implements AutoCloseable {
     /** Also callable explicitly, for example when using a controlled clock. */
     public synchronized void checkMissing() {
         Instant now = clock.instant();
+        List<Attendance> approved = List.copyOf(sessions);
         for (Missing expected : deadlines) {
             Instant deadline = expected.date().toInstant();
             if (now.isBefore(deadline)) continue;
             ZoneId zone = deadlineZones.get(expected);
-            LocalDate day = deadline.atZone(zone).toLocalDate();
-            boolean checkedIn = sessions.stream().anyMatch(session ->
-                    session.employee().id() == expected.employe().id()
-                            && session.place().equals(expected.place())
-                            && session.checkIn().atZone(zone).toLocalDate().equals(day)
-                            && !session.checkIn().isAfter(deadline));
+            boolean checkedIn = absencePolicy.isCovered(expected, zone, approved);
             if (!checkedIn && !missing.contains(expected)) missing.add(expected);
             // An on-time entry can be recorded after the deadline checker ran.
             // Reconcile from the actual entry time so scheduling order has no effect.
