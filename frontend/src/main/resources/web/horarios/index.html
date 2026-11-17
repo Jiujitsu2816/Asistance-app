@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Definición de horarios</title>
+  <link rel="stylesheet" href="/shared/styles.css">
+  <script src="/config.js"></script>
+  <script type="module" src="./horarios.js"></script>
+</head>
+<body>
+<header class="app">
+  <h1>Definición de horarios</h1>
+  <span class="module">Horarios, turnos, guardias y calendario</span>
+  <nav>
+    <a href="/fichaje/">Fichaje</a>
+    <a href="/consulta/">Consulta</a>
+    <a href="/horarios/" aria-current="page">Horarios</a>
+  </nav>
+</header>
+<main>
+  <section class="card">
+    <h2>Horarios definidos</h2>
+    <div class="table-wrap" id="schedules"></div>
+  </section>
+
+  <section class="card">
+    <h2>Nuevo horario</h2>
+    <form id="schedule-form">
+      <div class="grid">
+        <label>Nombre <input id="s-name" required maxlength="80" placeholder="p. ej. Oficina central"></label>
+        <label>Tipo
+          <select id="s-kind">
+            <option value="CONTINUOUS">Corrido (oficina)</option>
+            <option value="SPLIT">Partido (tienda / restaurante)</option>
+            <option value="ROTATING_SHIFT">Turnos rotatorios (hospital)</option>
+            <option value="ON_CALL">Guardias (hospital)</option>
+          </select>
+        </label>
+        <label>Tolerancia (min) <input id="s-tolerance" type="number" min="0" max="120" value="10"></label>
+      </div>
+
+      <div data-kind="CONTINUOUS SPLIT">
+        <fieldset>
+          <legend>Días laborables</legend>
+          <div class="days" id="s-days"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Tramos horarios <span class="sub" id="slots-hint"></span></legend>
+          <div id="s-slots"></div>
+          <button type="button" class="secondary small" id="add-slot" data-kind="SPLIT">Añadir tramo</button>
+        </fieldset>
+      </div>
+
+      <div data-kind="ROTATING_SHIFT" hidden>
+        <div class="grid"><label>Inicio del ciclo <input type="date" id="s-cycle-start"></label></div>
+        <fieldset>
+          <legend>Días del ciclo (se repite indefinidamente)</legend>
+          <div id="s-cycle"></div>
+          <button type="button" class="secondary small" id="add-cycle-day">Añadir día</button>
+        </fieldset>
+      </div>
+
+      <div data-kind="ON_CALL" hidden>
+        <div class="grid">
+          <label>Hora de inicio <input type="time" id="s-oncall-start" value="08:00"></label>
+          <label>Duración (horas) <input type="number" id="s-oncall-hours" min="1" max="24" value="24"></label>
+          <label>Modalidad
+            <select id="s-oncall-mode">
+              <option value="PHYSICAL">Presencia física (exige fichar)</option>
+              <option value="LOCALIZED">Localizada (no exige presencia)</option>
+            </select>
+          </label>
+        </div>
+        <fieldset>
+          <legend>Fechas de guardia</legend>
+          <div class="grid">
+            <label>Fecha <input type="date" id="s-oncall-date"></label>
+            <button type="button" class="secondary" id="add-date">Añadir fecha</button>
+          </div>
+          <p class="sub" id="s-dates"></p>
+        </fieldset>
+      </div>
+
+      <details>
+        <summary>JSON que se enviará al backend</summary>
+        <pre id="s-preview" class="sub"></pre>
+      </details>
+      <div class="actions"><button type="submit">Guardar horario</button></div>
+      <div id="schedule-message"></div>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Asignación de horarios</h2>
+    <p class="hint">Un horario se asigna a una persona o a un equipo durante un periodo. La asignación
+      individual tiene prioridad sobre la del equipo. Los periodos de un mismo destino no pueden solaparse.</p>
+    <form id="assignment-form" class="grid">
+      <label>Horario <select id="a-schedule" required></select></label>
+      <label>Asignar a
+        <select id="a-target-type">
+          <option value="person">Persona</option>
+          <option value="team">Equipo</option>
+        </select>
+      </label>
+      <label data-target="person">Persona <select id="a-person"></select></label>
+      <label data-target="team" hidden>Equipo <input id="a-team" placeholder="p. ej. administracion"></label>
+      <label>Desde <input type="date" id="a-from" required></label>
+      <label>Hasta (opcional) <input type="date" id="a-to"></label>
+      <button type="submit">Asignar</button>
+    </form>
+    <div id="assignment-message"></div>
+    <div class="table-wrap" id="assignments"></div>
+  </section>
+
+  <section class="card">
+    <h2>Calendario de festivos</h2>
+    <p class="hint">En festivo no se esperan los horarios corridos ni partidos. Los turnos y guardias mantienen la
+      cobertura.</p>
+    <form id="holiday-form" class="grid">
+      <label>Fecha <input type="date" id="h-date" required></label>
+      <label>Descripción <input id="h-description" required maxlength="80"></label>
+      <button type="submit">Añadir festivo</button>
+    </form>
+    <div id="holiday-message"></div>
+    <div class="table-wrap" id="holidays"></div>
+  </section>
+
+  <section class="card">
+    <h2>Personas</h2>
+    <p class="hint">Usa códigos internos y nombres ficticios: no introduzcas datos personales reales.</p>
+    <form id="person-form" class="grid">
+      <label>Código <input id="p-id" required maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9_\-]*" placeholder="EMP-009"></label>
+      <label>Nombre visible <input id="p-name" required maxlength="80"></label>
+      <label>Equipo (opcional) <input id="p-team" maxlength="40"></label>
+      <button type="submit">Dar de alta</button>
+    </form>
+    <div id="person-message"></div>
+    <div class="table-wrap" id="people"></div>
+  </section>
+</main>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Consulta de presencia</title>
+  <link rel="stylesheet" href="/shared/styles.css">
+  <script src="/config.js"></script>
+  <script type="module" src="./consulta.js"></script>
+</head>
+<body>
+<header class="app">
+  <h1>Consulta de presencia</h1>
+  <span class="module">Presencia, informes e incidencias</span>
+  <nav>
+    <a href="/fichaje/">Fichaje</a>
+    <a href="/consulta/" aria-current="page">Consulta</a>
+    <a href="/horarios/">Horarios</a>
+  </nav>
+</header>
+<main>
+  <div class="tabs" role="tablist">
+    <button role="tab" data-tab="presence" aria-selected="true">Presencia actual</button>
+    <button role="tab" data-tab="report">Informe por persona</button>
+    <button role="tab" data-tab="incidents">Incidencias</button>
+    <button role="tab" data-tab="events">Fichajes</button>
+    <button role="tab" data-tab="audit">Auditoría</button>
+  </div>
+
+  <section class="card" data-panel="presence">
+    <h2>Presencia actual</h2>
+    <p class="hint">Estado de cada persona en este momento según su horario asignado. Se actualiza cada 30 s.</p>
+    <div class="actions"><button class="secondary small" id="presence-refresh" type="button">Actualizar</button></div>
+    <div class="table-wrap" id="presence-table"></div>
+  </section>
+
+  <section class="card" data-panel="report" hidden>
+    <h2>Informe por persona y periodo</h2>
+    <form id="report-form" class="grid">
+      <label>Persona <select id="report-person" required></select></label>
+      <label>Desde <input type="date" id="report-from" required></label>
+      <label>Hasta <input type="date" id="report-to" required></label>
+      <button type="submit">Consultar</button>
+    </form>
+    <div id="report-totals"></div>
+    <div class="table-wrap" id="report-table"></div>
+  </section>
+
+  <section class="card" data-panel="incidents" hidden>
+    <h2>Incidencias</h2>
+    <p class="hint">Las incidencias se calculan a partir de los fichajes y el horario. Se pueden justificar
+      (cita médica, formación...); la justificación queda auditada y no se puede repetir.</p>
+    <form id="incidents-form" class="grid">
+      <label>Persona <select id="incidents-person"></select></label>
+      <label>Desde <input type="date" id="incidents-from" required></label>
+      <label>Hasta <input type="date" id="incidents-to" required></label>
+      <label>Tipo
+        <select id="incidents-type">
+          <option value="">Todos</option>
+          <option value="ABSENCE">Ausencia</option>
+          <option value="LATE_ARRIVAL">Retraso</option>
+          <option value="EARLY_DEPARTURE">Salida anticipada</option>
+          <option value="MISSING_CHECKOUT">Salida pendiente</option>
+          <option value="UNSCHEDULED_WORK">Fuera de horario</option>
+        </select>
+      </label>
+      <button type="submit">Buscar</button>
+    </form>
+    <div id="incidents-message"></div>
+    <div class="table-wrap" id="incidents-table"></div>
+  </section>
+
+  <section class="card" data-panel="events" hidden>
+    <h2>Registro de fichajes</h2>
+    <form id="events-form" class="grid">
+      <label>Persona <select id="events-person"></select></label>
+      <label>Desde <input type="date" id="events-from" required></label>
+      <label>Hasta <input type="date" id="events-to" required></label>
+      <button type="submit">Buscar</button>
+    </form>
+    <div class="table-wrap" id="events-table"></div>
+  </section>
+
+  <section class="card" data-panel="audit" hidden>
+    <h2>Auditoría de modificaciones</h2>
+    <p class="hint">Últimos 50 cambios: altas, horarios, asignaciones, festivos, fichajes y justificaciones.</p>
+    <div class="actions"><button class="secondary small" id="audit-refresh" type="button">Actualizar</button></div>
+    <div class="table-wrap" id="audit-table"></div>
+  </section>
+
+  <div id="message"></div>
+</main>
+</body>
+</html>

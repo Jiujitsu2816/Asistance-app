@@ -63,7 +63,7 @@ public final class DemoData {
         person("EMP-001", "Persona Oficina A", "administracion");
         person("EMP-002", "Persona Oficina B", "administracion");
         person("EMP-003", "Persona Restaurante", "sala");
-        person("EMP-004", "Persona Enfermeria", "planta-3");
+        person("EMP-004", "Persona Enfermería", "planta-3");
         person("EMP-005", "Persona Medicina A", "urgencias");
         person("EMP-006", "Persona Medicina B", "urgencias");
         person("EMP-007", "Persona Sin Horario", null);
@@ -78,7 +78,7 @@ public final class DemoData {
                 List.of(new TimeSlot(LocalTime.of(12, 0), LocalTime.of(16, 0)),
                         new TimeSlot(LocalTime.of(19, 30), LocalTime.of(23, 30)))), ACTOR);
         LocalDate cycleStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        Shift morning = new Shift("Manana", LocalTime.of(7, 0), Duration.ofHours(8));
+        Shift morning = new Shift("Mañana", LocalTime.of(7, 0), Duration.ofHours(8));
         Shift afternoon = new Shift("Tarde", LocalTime.of(15, 0), Duration.ofHours(7));
         Shift night = new Shift("Noche", LocalTime.of(22, 0), Duration.ofHours(10));
         Schedule shifts = schedules.createSchedule(id -> new RotatingShiftSchedule(id,
@@ -87,7 +87,7 @@ public final class DemoData {
                         new CycleDay.Work(afternoon), new CycleDay.Work(night), new CycleDay.Rest(),
                         new CycleDay.Rest())), ACTOR);
         Schedule physicalGuard = schedules.createSchedule(id -> new OnCallSchedule(id,
-                "Hospital - guardia de presencia fisica 24 h", Duration.ofMinutes(15), LocalTime.of(8, 0),
+                "Hospital - guardia de presencia física 24 h", Duration.ofMinutes(15), LocalTime.of(8, 0),
                 Duration.ofHours(24), OnCallMode.PHYSICAL,
                 new TreeSet<>(List.of(today.minusDays(6), today.minusDays(2), today.plusDays(2), today.plusDays(6)))),
                 ACTOR);
@@ -105,10 +105,10 @@ public final class DemoData {
         assign(physicalGuard, TargetType.PERSON, "EMP-005", from);
         assign(localizedGuard, TargetType.PERSON, "EMP-006", from);
 
-        for (var holiday : List.of(new Holiday(LocalDate.of(2026, 12, 8), "Inmaculada Concepcion"),
+        for (var holiday : List.of(new Holiday(LocalDate.of(2026, 12, 8), "Inmaculada Concepción"),
                 new Holiday(LocalDate.of(2026, 12, 25), "Navidad"),
-                new Holiday(LocalDate.of(2027, 1, 1), "Ano Nuevo"),
-                new Holiday(LocalDate.of(2027, 1, 6), "Epifania del Senor")))
+                new Holiday(LocalDate.of(2027, 1, 1), "Año Nuevo"),
+                new Holiday(LocalDate.of(2027, 1, 6), "Epifanía del Señor")))
             schedules.addHoliday(holiday, ACTOR);
 
         // Fichajes historicos de la ultima semana (origen IMPORT). En el ultimo dia laborable de

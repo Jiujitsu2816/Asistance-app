@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Registro de asistencia</title>
+  <link rel="stylesheet" href="/shared/styles.css">
+  <script src="/config.js"></script>
+  <script type="module" src="./fichaje.js"></script>
+</head>
+<body>
+<header class="app">
+  <h1>Registro de asistencia</h1>
+  <span class="module">Fichar entrada y salida</span>
+  <nav>
+    <a href="/fichaje/" aria-current="page">Fichaje</a>
+    <a href="/consulta/">Consulta</a>
+    <a href="/horarios/">Horarios</a>
+  </nav>
+</header>
+<main>
+  <section class="card">
+    <h2>¿Quién ficha?</h2>
+    <div class="grid">
+      <label>Persona
+        <select id="person"></select>
+      </label>
+      <label>Origen del fichaje
+        <select id="source">
+          <option value="KIOSK">Terminal de fichaje (KIOSK)</option>
+          <option value="WEB">Web o móvil (WEB)</option>
+          <option value="ADMIN">Corrección de administración (ADMIN)</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="status-panel" id="status" aria-live="polite"></div>
+
+    <div class="actions">
+      <button class="big entry" id="entry" type="button">Fichar ENTRADA</button>
+      <button class="big exit" id="exit" type="button">Fichar SALIDA</button>
+    </div>
+
+    <details>
+      <summary>Corrección manual o prueba (indicar hora y nota)</summary>
+      <p class="hint">Si se indica una hora, el fichaje se registra con esa hora (no puede ser futura ni anterior
+        al último fichaje). Queda auditado con la hora real en que se introdujo. Úsalo con origen ADMIN para
+        corregir un olvido.</p>
+      <div class="grid">
+        <label>Hora del fichaje
+          <input type="datetime-local" id="timestamp">
+        </label>
+        <label>Nota
+          <input type="text" id="note" maxlength="200" placeholder="p. ej. Olvido de fichaje">
+        </label>
+      </div>
+    </details>
+
+    <div id="message"></div>
+  </section>
+
+  <section class="card">
+    <h2>Fichajes de hoy</h2>
+    <div class="table-wrap" id="events"></div>
+  </section>
+</main>
+</body>
+</html>

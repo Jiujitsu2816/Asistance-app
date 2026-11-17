@@ -40,14 +40,14 @@ public record OnCallSchedule(String id, String name, Duration tolerance, LocalTi
 
     @Override public List<WorkPeriod> periodsStartingOn(LocalDate date) {
         if (!dates.contains(date)) return List.of();
-        String label = (mode == OnCallMode.PHYSICAL ? "Guardia fisica " : "Guardia localizada ") + start;
+        String label = (mode == OnCallMode.PHYSICAL ? "Guardia física " : "Guardia localizada ") + start;
         return List.of(new WorkPeriod(label, date, start, duration, mode == OnCallMode.PHYSICAL));
     }
 
     @Override public boolean exemptOnHolidays() { return false; }
 
     @Override public String summary() {
-        return (mode == OnCallMode.PHYSICAL ? "Guardia fisica " : "Guardia localizada ")
+        return (mode == OnCallMode.PHYSICAL ? "Guardia física " : "Guardia localizada ")
                 + duration.toHours() + " h desde " + start + " (" + dates.size() + " fechas)";
     }
 }
