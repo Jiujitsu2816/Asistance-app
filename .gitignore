@@ -1,8 +1,8 @@
 ### Maven / build outputs ###
 target/
-out/
-build/
-bin/
+/out/
+/build/
+/bin/
 *.class
 *.jar
 *.war
