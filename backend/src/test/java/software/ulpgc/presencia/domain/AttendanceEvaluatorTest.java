@@ -247,6 +247,18 @@ class AttendanceEvaluatorTest {
     }
 
     @Test
+    void anEntryForgottenYesterdayIsAPendingCheckoutEvenDuringTodaysPeriod() {
+        LocalDate tuesday = MONDAY.plusDays(1);
+        var in = input(office(), List.of(entry("EMP-1", at(MONDAY, 8, 0))));
+        var state = evaluator.presence(in, at(tuesday, 10, 0));
+        assertEquals(PresenceStatus.CHECKOUT_PENDING, state.status());
+        assertEquals(DayStatus.ABSENT, state.todayStatus());
+        var older = input(office(), List.of(entry("EMP-1", at(MONDAY.minusDays(7), 8, 0))));
+        assertEquals(PresenceStatus.CHECKOUT_PENDING, evaluator.presence(older, at(tuesday, 10, 0)).status(),
+                "tambien si la entrada queda fuera de la ventana evaluada");
+    }
+
+    @Test
     void presenceOnLocalizedOnCall() {
         var input = input(onCall(OnCallMode.LOCALIZED, MONDAY), List.of());
         assertEquals(PresenceStatus.ON_CALL, evaluator.presence(input, at(MONDAY, 12, 0)).status());

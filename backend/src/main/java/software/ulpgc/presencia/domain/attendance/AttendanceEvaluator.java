@@ -96,12 +96,14 @@ public final class AttendanceEvaluator {
         PresenceStatus status;
         if (inside) {
             Planned assigned = evaluation.periodOfOpenSession();
-            if (current != null) status = PresenceStatus.PRESENT;
-            else if (assigned != null)
+            // La entrada abierta pertenece al periodo con el que se asocio, no al actual: si
+            // ese periodo ya termino (p. ej. olvido de salida ayer) la salida esta pendiente.
+            if (assigned != null)
                 status = now.isAfter(assigned.end().plus(assigned.tolerance()))
                         ? PresenceStatus.CHECKOUT_PENDING : PresenceStatus.PRESENT;
-            else status = Duration.between(since, now).compareTo(MAX_UNSCHEDULED_OPEN) > 0
-                        ? PresenceStatus.CHECKOUT_PENDING : PresenceStatus.PRESENT_OUT_OF_SCHEDULE;
+            else if (Duration.between(since, now).compareTo(MAX_UNSCHEDULED_OPEN) > 0)
+                status = PresenceStatus.CHECKOUT_PENDING;
+            else status = current != null ? PresenceStatus.PRESENT : PresenceStatus.PRESENT_OUT_OF_SCHEDULE;
         } else if (current != null) {
             if (!current.required()) status = PresenceStatus.ON_CALL;
             else if (now.isBefore(current.start().plus(current.tolerance()))) status = PresenceStatus.EXPECTED;
