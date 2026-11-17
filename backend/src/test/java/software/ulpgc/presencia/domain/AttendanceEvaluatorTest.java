@@ -220,6 +220,24 @@ class AttendanceEvaluatorTest {
     }
 
     @Test
+    void anEntryJustRegisteredCountsAsPresentAndLate() {
+        Instant entry = at(MONDAY, 11, 19);
+        var in = input(office(), List.of(entry("EMP-1", entry)));
+        assertEquals(PresenceStatus.PRESENT, evaluator.presence(in, entry).status(), "mismo instante");
+        assertEquals(DayStatus.LATE, evaluator.presence(in, entry).todayStatus());
+    }
+
+    @Test
+    void anEarlyArrivalIsAssociatedWithTheNextPeriod() {
+        var in = input(office(), List.of(entry("EMP-1", at(MONDAY, 7, 50))));
+        var state = evaluator.presence(in, at(MONDAY, 7, 55));
+        assertEquals(PresenceStatus.PRESENT, state.status());
+        DailyAttendance day = evaluator.evaluate(in, MONDAY, MONDAY, at(MONDAY, 7, 55)).getFirst();
+        assertEquals(DayStatus.IN_PROGRESS, day.status());
+        assertTrue(day.incidents().isEmpty(), "llegar antes no es trabajo fuera de horario");
+    }
+
+    @Test
     void presenceDuringANightShiftThatStartedYesterday() {
         LocalDate wednesday = MONDAY.plusDays(2);
         var in = input(hospitalShifts(), List.of(entry("EMP-1", at(wednesday, 23, 0))));
