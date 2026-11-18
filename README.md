@@ -51,6 +51,24 @@ JavaFX incluyen las librerías nativas del sistema donde se compila (Windows, ma
 
 ## 3. Cómo compilar y ejecutar
 
+### Arranque rápido (todo en uno)
+
+- **Windows**: doble clic en **`iniciar.bat`**.
+- **Linux / macOS**: `./iniciar.sh`.
+- **IntelliJ**: configuración **"Lanzador (todo en uno)"**.
+
+La primera vez compila el proyecto (unos minutos). Después arranca el backend y abre una ventana con
+botones para abrir **Registro de asistencia**, **Consulta de presencia** y **Definición de horarios**
+(o las tres a la vez). Al cerrar esa ventana se cierran las aplicaciones y el backend. Solo hace falta
+un JDK 21+ (`JAVA_HOME` definido o `java` en el PATH).
+
+El lanzador (`lanzador/`, clase `software.ulpgc.presencia.lanzador.Lanzador`) solo es una comodidad:
+ejecuta el backend y las aplicaciones en el mismo proceso, pero las aplicaciones siguen hablando con el
+backend por HTTP, exactamente igual que cuando se ejecutan por separado. Si el puerto 8080 ya tiene un
+backend en marcha, lo reutiliza. Tras modificar el código hay que recompilar (`.\mvnw.cmd clean package`)
+para que `iniciar.bat` use la versión nueva.
+
+
 ### Con IntelliJ IDEA
 
 1. *File → Open…* y selecciona la carpeta del repositorio (IntelliJ detecta el `pom.xml` multimódulo).
@@ -225,6 +243,8 @@ sustituibles.
 ```
 control-presencia/
 ├── pom.xml                         POM padre (módulos backend y frontend, JDK 21)
+├── iniciar.bat / iniciar.sh        Arranque todo en uno (doble clic)
+├── mvnw, mvnw.cmd, .mvn/           Maven Wrapper (no hace falta instalar Maven)
 ├── .run/                           Configuraciones de ejecución de IntelliJ
 ├── backend/                        presencia-backend
 │   └── src/main/java/software/ulpgc/presencia/
@@ -248,6 +268,7 @@ control-presencia/
 │   ├── fichaje/                    presencia-fichaje   (FichajeLauncher, FichajeApp, FichajeView)
 │   ├── consulta/                   presencia-consulta  (ConsultaLauncher, ConsultaApp, ConsultaView)
 │   └── horarios/                   presencia-horarios  (HorariosLauncher, HorariosApp, HorariosView, ScheduleForm)
+├── lanzador/                       presencia-lanzador (Lanzador, LanzadorApp): backend + ventana de arranque
 └── docs/capturas/                  Capturas de las tres aplicaciones
 ```
 
