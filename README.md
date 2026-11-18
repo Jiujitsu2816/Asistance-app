@@ -68,11 +68,22 @@ extiende `Application`, así se ejecuta desde el classpath sin configurar el *mo
 
 ### Desde la terminal
 
-```bash
-mvn clean package
+No hace falta instalar Maven: el repositorio incluye el **Maven Wrapper** (`mvnw` / `mvnw.cmd`), que
+descarga Maven 3.9.11 la primera vez. Solo se necesita un JDK 21+ con `JAVA_HOME` configurado.
+
+En Windows (PowerShell):
+
+```powershell
+.\mvnw.cmd clean package
 ```
 
-`mvn clean package` compila y ejecuta las 64 pruebas (las de interfaz se ejecutan sin ventanas) y
+En Linux o macOS:
+
+```bash
+./mvnw clean package
+```
+
+(Si Maven está instalado, `mvn clean package` es equivalente.) El empaquetado compila y ejecuta las 64 pruebas (las de interfaz se ejecutan sin ventanas) y
 genera un jar ejecutable por proceso. Cada uno se lanza en una terminal distinta:
 
 ```bash
