@@ -1,7 +1,9 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Sistema completo" type="CompoundRunConfigurationType">
     <toRun name="Backend" type="Application" />
-    <toRun name="Frontend" type="Application" />
+    <toRun name="App Fichaje" type="Application" />
+    <toRun name="App Consulta" type="Application" />
+    <toRun name="App Horarios" type="Application" />
     <method v="2" />
   </configuration>
 </component>

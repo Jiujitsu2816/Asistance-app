@@ -2,7 +2,7 @@
 
 Proyecto extraordinario de Ingeniería de Software 2 (EII, ULPGC). Sistema de control de presencia
 con un **backend HTTP/JSON** de arquitectura hexagonal, una **base de datos H2** y **tres aplicaciones
-frontend separadas**: registro de asistencia, consulta de presencia e incidencias, y definición de
+JavaFX independientes**: registro de asistencia, consulta de presencia e incidencias, y definición de
 horarios.
 
 ## Índice
@@ -40,13 +40,14 @@ localizadas), además de festivos e incidencias justificadas.
 |---|---|---|
 | JDK | **21 o superior** (se compila con `release 21`; funciona también con JDK 25/26) | Lenguaje y servidor HTTP del JDK (`com.sun.net.httpserver`) |
 | Maven | 3.9 o superior (IntelliJ IDEA ya lo incluye) | Compilación, pruebas y empaquetado |
-| Jackson (`jackson-databind`, `jackson-datatype-jsr310`) | 2.18.1 | JSON del contrato HTTP |
+| JavaFX (`javafx-controls`) | 21.0.5 | Interfaz de las tres aplicaciones (Maven la descarga; no hay que instalarla) |
+| Jackson (`jackson-databind`, `jackson-datatype-jsr310`) | 2.18.1 | JSON del contrato HTTP (backend y cliente de los frontends) |
 | H2 Database | 2.3.232 | Base de datos embebida en fichero |
 | JUnit Jupiter | 5.11.3 | Pruebas automatizadas |
+| TestFX + Monocle | 4.0.18 / 21.0.2 | Pruebas de interfaz JavaFX sin abrir ventanas (solo en pruebas) |
 
-No hacen falta servidores externos: la base de datos se crea sola en `./data/` y los frontends son
-HTML + JavaScript (módulos ES) servidos por un pequeño servidor Java. Solo se necesita un navegador.
-Node.js **no** es necesario (únicamente para el script opcional que regenera las capturas).
+No hacen falta servidores externos: la base de datos se crea sola en `./data/`. Las dependencias de
+JavaFX incluyen las librerías nativas del sistema donde se compila (Windows, macOS o Linux).
 
 ## 3. Cómo compilar y ejecutar
 
@@ -55,14 +56,15 @@ Node.js **no** es necesario (únicamente para el script opcional que regenera la
 1. *File → Open…* y selecciona la carpeta del repositorio (IntelliJ detecta el `pom.xml` multimódulo).
 2. *File → Project Structure → Project SDK*: un JDK 21 o superior.
 3. En el desplegable de ejecución aparecen las configuraciones compartidas de la carpeta `.run/`:
-   - **Sistema completo**: arranca backend y frontends a la vez.
-   - **Backend** (`software.ulpgc.presencia.BackendApplication`) y **Frontend**
-     (`software.ulpgc.presencia.frontend.FrontendServer`) por separado.
-   - **Todas las pruebas**: `mvn test` de los dos módulos.
-4. Abre <http://localhost:8081/>.
+   - **Sistema completo**: arranca el backend y las tres aplicaciones a la vez (las apps esperan
+     unos segundos a que el backend esté escuchando).
+   - **Backend** (`software.ulpgc.presencia.BackendApplication`).
+   - **App Fichaje**, **App Consulta** y **App Horarios** (`…frontend.<app>.<App>Launcher`).
+   - **Todas las pruebas**: `mvn test` de todos los módulos.
 
 Las configuraciones usan `$PROJECT_DIR$` como directorio de trabajo, por lo que la base de datos se
-crea en `<repositorio>/data/` (excluida de Git).
+crea en `<repositorio>/data/` (excluida de Git). Cada aplicación tiene una clase `…Launcher` que no
+extiende `Application`, así se ejecuta desde el classpath sin configurar el *module-path* de JavaFX.
 
 ### Desde la terminal
 
@@ -70,30 +72,40 @@ crea en `<repositorio>/data/` (excluida de Git).
 mvn clean package
 ```
 
+`mvn clean package` compila y ejecuta las 64 pruebas (las de interfaz se ejecutan sin ventanas) y
+genera un jar ejecutable por proceso. Cada uno se lanza en una terminal distinta:
+
 ```bash
-java -jar backend/target/presencia-backend.jar
+java -jar backend/target/presencia-backend-app.jar
 ```
 
 ```bash
-java -jar frontend/target/presencia-frontend.jar
+java -jar frontend/fichaje/target/presencia-fichaje-app.jar
 ```
 
-`mvn clean package` compila y ejecuta las 52 pruebas. Cada proceso se lanza en una terminal distinta y
-el backend se puede ejecutar de forma independiente (por ejemplo, para usar la API con `curl`). Sin
-empaquetar, también vale `mvn -pl backend compile exec:java` y `mvn -pl frontend compile exec:java`.
+```bash
+java -jar frontend/consulta/target/presencia-consulta-app.jar
+```
 
-| Aplicación | URL |
+```bash
+java -jar frontend/horarios/target/presencia-horarios-app.jar
+```
+
+El backend se ejecuta de forma independiente (se puede usar la API con `curl`). Sin empaquetar también
+vale `mvn -pl backend compile exec:java` y, para cada aplicación, `mvn -pl frontend/fichaje javafx:run`
+(después de un `mvn install -DskipTests`).
+
+| Proceso | Dirección |
 |---|---|
-| Inicio (enlaces a las tres apps) | <http://localhost:8081/> |
-| Registro de asistencia | <http://localhost:8081/fichaje/> |
-| Consulta de presencia e incidencias | <http://localhost:8081/consulta/> |
-| Definición de horarios | <http://localhost:8081/horarios/> |
-| API del backend | <http://localhost:8080/api/health> |
+| Backend (API HTTP/JSON) | <http://localhost:8080/api/health> |
+| Registro de asistencia | aplicación JavaFX `presencia-fichaje` |
+| Consulta de presencia e incidencias | aplicación JavaFX `presencia-consulta` |
+| Definición de horarios | aplicación JavaFX `presencia-horarios` |
 
 ### Configuración: puertos, base de datos y datos iniciales
 
-Los valores por defecto están en `backend/src/main/resources/application.properties` y
-`frontend/src/main/resources/frontend.properties`. Cada clave se puede sobrescribir con `-Dclave=valor`
+Los valores por defecto del backend están en `backend/src/main/resources/application.properties`;
+la URL de la API de las aplicaciones está en `ApiConfig` (por defecto `http://localhost:8080/api`). Cada clave se puede sobrescribir con `-Dclave=valor`
 o con una variable de entorno (mayúsculas y `_`), sin tocar el código ni usar rutas absolutas:
 
 | Clave | Variable de entorno | Por defecto | Descripción |
@@ -105,11 +117,10 @@ o con una variable de entorno (mayúsculas y `_`), sin tocar el código ni usar 
 | `presencia.db.user` / `presencia.db.password` | `PRESENCIA_DB_USER` / `PRESENCIA_DB_PASSWORD` | `sa` / vacío | Credenciales de la BD local de desarrollo |
 | `presencia.zone` | `PRESENCIA_ZONE` | `Atlantic/Canary` | Zona horaria de los horarios |
 | `presencia.seed` | `PRESENCIA_SEED` | `true` | Cargar datos de ejemplo si la BD está vacía |
-| `presencia.frontend.port` | `PRESENCIA_FRONTEND_PORT` | `8081` | Puerto de los frontends |
-| `presencia.api.url` | `PRESENCIA_API_URL` | `http://localhost:8080/api` | URL de la API que usan los frontends |
+| `presencia.api.url` | `PRESENCIA_API_URL` | `http://localhost:8080/api` | URL de la API que usan las tres aplicaciones |
 
-Ejemplo: `java -Dpresencia.http.port=9090 -jar backend/target/presencia-backend.jar` y
-`java -Dpresencia.api.url=http://localhost:9090/api -jar frontend/target/presencia-frontend.jar`.
+Ejemplo: `java -Dpresencia.http.port=9090 -jar backend/target/presencia-backend-app.jar` y
+`java -Dpresencia.api.url=http://localhost:9090/api -jar frontend/fichaje/target/presencia-fichaje-app.jar`.
 
 Para **empezar de cero** basta con borrar la carpeta `data/` con el backend parado.
 
@@ -133,29 +144,31 @@ También se cargan cuatro festivos del calendario y la historia de los últimos 
 
 ```mermaid
 flowchart LR
-    subgraph Navegador
-        F1["Registro de asistencia<br/>/fichaje/"]
-        F2["Consulta de presencia<br/>/consulta/"]
-        F3["Definición de horarios<br/>/horarios/"]
-        AC["shared/api-client.js<br/>(adaptador de comunicación)"]
-        F1 & F2 & F3 --> AC
+    subgraph Escritorio["Aplicaciones JavaFX (procesos independientes)"]
+        F1["presencia-fichaje<br/>Registro de asistencia"]
+        F2["presencia-consulta<br/>Consulta de presencia"]
+        F3["presencia-horarios<br/>Definición de horarios"]
+        C["presencia-frontend-comun<br/>PresenceApi + HttpPresenceApi<br/>(adaptador de comunicación) y estilo"]
+        F1 & F2 & F3 --> C
     end
-    FS["presencia-frontend<br/>servidor estático :8081<br/>(HTML, JS, /config.js)"]
     BE["presencia-backend<br/>API HTTP/JSON :8080"]
     DB[("H2 en fichero<br/>./data/presencia.mv.db")]
-    FS -. sirve ficheros .-> Navegador
-    AC -- "HTTP + JSON (contrato §10)<br/>cabecera X-Actor" --> BE
+    C -- "HTTP + JSON (contrato §10)<br/>cabecera X-Actor" --> BE
     BE -- JDBC --> DB
 ```
 
-- **Tres aplicaciones frontend diferenciadas**, cada una con su HTML y su módulo JavaScript. No
-  comparten estado; solo comparten el adaptador de comunicación y utilidades de presentación.
-- **Los frontends nunca acceden a la base de datos**: solo llaman a la API mediante
-  `HttpPresenceApi` (`frontend/src/main/resources/web/shared/api-client.js`). Las vistas no hacen
-  `fetch` ni conocen rutas HTTP; para cambiar de transporte o usar un mock basta con otro objeto con
-  los mismos métodos. La URL de la API se inyecta en tiempo de ejecución con `/config.js`.
+- **Tres aplicaciones frontend diferenciadas**: cada una es un módulo Maven y un proceso propio con su
+  ventana, su `Launcher` y su jar ejecutable. No comparten estado; solo comparten el módulo
+  `presencia-frontend-comun`.
+- **Los frontends nunca acceden a la base de datos**: solo usan la interfaz `PresenceApi`
+  (`frontend/comun/.../api/PresenceApi.java`). Su implementación `HttpPresenceApi` es el adaptador de
+  comunicación (cliente HTTP del JDK + Jackson); las vistas la reciben por constructor, por lo que se
+  puede sustituir (otra URL, un doble de prueba, otro protocolo) sin tocarlas. Los tipos del contrato
+  (`ApiModel`) son propios del frontend: no se reutilizan clases del backend.
+- **Las vistas no bloquean la interfaz**: todas las llamadas se hacen en segundo plano (`Background`)
+  y el resultado se muestra en el hilo de JavaFX.
 - **El backend no depende de los frontends**: es ejecutable de forma independiente y solo expone JSON.
-  Como frontends y backend están en puertos distintos, el backend responde a CORS.
+  (Las aplicaciones dependen del backend únicamente en sus pruebas, para probar contra el sistema real.)
 - **Base de datos**: H2 embebida en un fichero local; el esquema (`backend/src/main/resources/db/schema.sql`)
   se crea al arrancar.
 
@@ -202,7 +215,7 @@ sustituibles.
 control-presencia/
 ├── pom.xml                         POM padre (módulos backend y frontend, JDK 21)
 ├── .run/                           Configuraciones de ejecución de IntelliJ
-├── backend/
+├── backend/                        presencia-backend
 │   └── src/main/java/software/ulpgc/presencia/
 │       ├── BackendApplication.java Punto de entrada
 │       ├── Backend.java            Raíz de composición
@@ -217,14 +230,14 @@ control-presencia/
 │           ├── json/               Representación JSON de horarios
 │           ├── config/             AppConfig
 │           └── seed/               Datos de ejemplo
-├── frontend/
-│   ├── src/main/java/.../frontend/FrontendServer.java
-│   └── src/main/resources/web/
-│       ├── shared/ api-client.js · ui.js · styles.css
-│       ├── fichaje/                Registro de asistencia
-│       ├── consulta/               Consulta de presencia e incidencias
-│       └── horarios/               Definición de horarios
-└── docs/capturas/                  Capturas y script que las genera
+├── frontend/                       presencia-frontend (agregador)
+│   ├── comun/                      presencia-frontend-comun
+│   │   ├── .../frontend/api/       PresenceApi, HttpPresenceApi, ApiModel, ApiException, ApiConfig
+│   │   └── .../frontend/ui/        Ui, Badge, MessageBar, Texts, Background, presencia.css
+│   ├── fichaje/                    presencia-fichaje   (FichajeLauncher, FichajeApp, FichajeView)
+│   ├── consulta/                   presencia-consulta  (ConsultaLauncher, ConsultaApp, ConsultaView)
+│   └── horarios/                   presencia-horarios  (HorariosLauncher, HorariosApp, HorariosView, ScheduleForm)
+└── docs/capturas/                  Capturas de las tres aplicaciones
 ```
 
 | Clase | Responsabilidad |
@@ -239,7 +252,9 @@ control-presencia/
 | `IncidentJustificationService` | Justificación de incidencias (idea propia) |
 | `HttpApiServer`, `Router`, `ApiRoutes` | Adaptador HTTP y traducción de errores de dominio a códigos HTTP |
 | `Database`, `Jdbc*Repository`, `JdbcAuditTrail` | Persistencia JDBC con transacciones |
-| `HttpPresenceApi` (JS) | Adaptador de comunicación sustituible de los frontends |
+| `PresenceApi` / `HttpPresenceApi` | Puerto de comunicación de los frontends y su adaptador HTTP + JSON |
+| `FichajeView`, `ConsultaView`, `HorariosView`, `ScheduleForm` | Vistas JavaFX de cada aplicación (reciben `PresenceApi` y `Clock` por constructor) |
+| `Ui`, `Badge`, `MessageBar`, `Background` | Componentes visuales comunes, mensajes de error del contrato y llamadas en segundo plano |
 
 ## 7. Modelo de datos
 
@@ -383,7 +398,7 @@ Encapsuladas en `ClockingPolicy` (al fichar) y `AttendanceEvaluator` (al consult
 
 HTTP + JSON, prefijo `/api`, UTF-8. Las fechas son `AAAA-MM-DD`, las horas `HH:mm` y los instantes
 ISO-8601 con desplazamiento (`2026-11-17T08:05:00Z`). La cabecera opcional **`X-Actor`** identifica
-quién hace la operación para la auditoría (los frontends envían `app-fichaje`, `app-consulta` y
+quién hace la operación para la auditoría (las aplicaciones envían `app-fichaje`, `app-consulta` y
 `app-horarios`). Los `POST` exigen `Content-Type: application/json` y se rechazan campos desconocidos.
 
 | Método | Ruta | Cuerpo / parámetros | Respuesta |
@@ -476,8 +491,16 @@ y se permite la **corrección de olvidos** con un fichaje de origen `ADMIN` con 
 
 ## 12. Capturas
 
-Generadas con el sistema real en ejecución (backend + frontends) y los datos de ejemplo, mediante
-`docs/capturas/generar-capturas.cjs`.
+Generadas a partir de las aplicaciones JavaFX reales conectadas al backend real (con los datos de
+ejemplo y un reloj fijo en el martes 17/11/2026 a las 11:00) por las pruebas de interfaz:
+
+```bash
+mvn install -DskipTests
+```
+
+```bash
+mvn -pl frontend/fichaje,frontend/consulta,frontend/horarios test -Dcapturas.dir=$(pwd)/docs/capturas
+```
 
 ### Registro de asistencia
 
@@ -499,7 +522,7 @@ Informe por persona y periodo: esperado, trabajado, desviación e incidencias de
 
 ![Informe por persona y periodo](docs/capturas/consulta-informe.png)
 
-Incidencias de todas las personas, con una ya justificada.
+Incidencias de todas las personas, con una ya justificada desde la propia tabla.
 
 ![Incidencias](docs/capturas/consulta-incidencias.png)
 
@@ -509,17 +532,17 @@ Auditoría de modificaciones.
 
 ### Definición de horarios
 
-Horarios definidos de los cuatro tipos, asignaciones (por persona y por equipo), festivos y personas.
+Horarios definidos de los cuatro tipos y formulario de un horario corrido.
 
 ![Definición de horarios](docs/capturas/horarios.png)
 
-Formulario de turnos rotatorios.
+Formulario de turnos rotatorios (ciclo de días de trabajo y descanso).
 
 ![Formulario de turnos rotatorios](docs/capturas/horarios-turnos.png)
 
 ## 13. Verificación realizada
 
-### Pruebas automatizadas (`mvn test`: 52 pruebas, todas correctas)
+### Pruebas automatizadas (`mvn test`: 64 pruebas, todas correctas)
 
 | Clase de prueba | Qué verifica |
 |---|---|
@@ -529,15 +552,23 @@ Formulario de turnos rotatorios.
 | `UseCasesTest` (9) | Casos de uso con **adaptadores en memoria**: flujo completo, todos los errores de fichaje, prioridad persona/equipo, solapes de asignaciones, festivos, justificación única y auditoría |
 | `HttpApiIntegrationTest` (6) | Backend real (HTTP + H2 en fichero temporal): flujo de fichaje y consulta, **todos los códigos de error del contrato**, ida y vuelta de los 4 tipos de horario, **persistencia tras reiniciar**, carga única de datos iniciales y CORS |
 | `ArchitectureTest` (3) | Reglas de dependencia de la arquitectura hexagonal |
-| `FrontendServerTest` (3) | Las tres aplicaciones y el adaptador se sirven, `/config.js`, redirecciones y rutas no válidas |
+| `HttpPresenceApiContractTest` (5) | **Contrato frontend/backend**: el cliente de las aplicaciones contra el backend real (lectura, altas de los 4 tipos de horario, fichaje, justificación, códigos de error y backend caído) |
+| `FichajeViewTest` (3) | **Interfaz** de fichaje contra el backend real: entrada, duplicado, salida, `SCHEDULE_NOT_ASSIGNED`, `DATE_OUT_OF_PERIOD`, salida sin entrada y corrección manual de un olvido |
+| `ConsultaViewTest` (4) | **Interfaz** de consulta: presencia actual, informe por persona y periodo, filtro y justificación de incidencias, auditoría y fichajes por periodo |
+| `HorariosViewTest` (3) | **Interfaz** de horarios: alta de los cuatro tipos desde el formulario, validación de horas, personas, asignación a equipo, solape y festivos duplicados |
+
+Las pruebas de interfaz usan TestFX con Monocle (*headless*), así que no abren ventanas y se pueden
+ejecutar en cualquier equipo o en integración continua.
 
 ### Comprobaciones manuales (sistema completo desde una copia limpia)
 
-Realizadas con `mvn clean package`, los dos `java -jar` y un navegador (además del script de capturas):
+Realizadas con `mvn clean package`, el jar del backend y los tres jars de las aplicaciones:
 
 | Comprobación | Resultado |
 |---|---|
-| Backend y frontends arrancan desde una copia limpia y se comunican | ✔ |
+| Compila y pasan las pruebas desde un `git clone` limpio | ✔ |
+| El backend y las tres aplicaciones arrancan con `java -jar` y se comunican | ✔ |
+| Las apps esperan al backend si se arrancan a la vez (configuración *Sistema completo*) | ✔ cargan los datos al estar disponible |
 | Se cargan los tres tipos de horario de ejemplo (más la guardia localizada) | ✔ 5 horarios |
 | Horarios asignados a personas ficticias (individual y por equipo) | ✔ |
 | Entrada y salida correctas | ✔ |
@@ -552,7 +583,7 @@ Realizadas con `mvn clean package`, los dos `java -jar` y un navegador (además 
 | Datos incompletos / JSON incorrecto | ✔ 400 `INVALID_DATA` |
 | Guardia sin fechas desde el formulario | ✔ rechazada con mensaje |
 | Corrección de olvido: salida `ADMIN` con hora de ayer para EMP-004 | ✔ aceptada; `recordedAt` conserva la hora real |
-| Reinicio del backend: fichajes, horarios y auditoría persisten | ✔ mismos 49 fichajes y 5 horarios tras reiniciar |
+| Reinicio del backend: fichajes, horarios y auditoría persisten | ✔ |
 
 Para repetirlas a mano con `curl`:
 
@@ -565,7 +596,7 @@ curl -s -X POST localhost:8080/api/clock-events -H 'Content-Type: application/js
 - **Seguridad y permisos**: no hay autenticación ni roles; cualquiera con acceso a la API puede fichar
   por otra persona o definir horarios. `X-Actor` es declarativo (no verificado). Por eso el backend
   escucha por defecto solo en `localhost`. Un despliegue real necesitaría autenticación (p. ej. OIDC),
-  roles empleado/responsable y HTTPS; CORS está abierto (`*`) para facilitar el desarrollo local.
+  roles empleado/responsable y HTTPS.
 - **Concurrencia**: los fichajes de una misma persona se serializan con un cerrojo en memoria y las
   escrituras van en transacciones. Es correcto con **una sola instancia** del backend; varias instancias
   requerirían un bloqueo en base de datos.
@@ -578,8 +609,12 @@ curl -s -X POST localhost:8080/api/clock-events -H 'Content-Type: application/js
 - **Modificación de datos**: no hay edición ni borrado de horarios, asignaciones o personas (solo altas),
   ni corrección/anulación de fichajes más allá de añadir uno nuevo con hora indicada; un fichaje no
   puede ser anterior al último registrado.
-- **Zona horaria**: se usa una sola zona configurable para todos los centros. Los frontends calculan
-  "hoy" con la fecha del navegador.
+- **Zona horaria**: se usa una sola zona configurable para todos los centros. Las aplicaciones
+  calculan "hoy" con el reloj del equipo donde se ejecutan.
+- **Aplicaciones JavaFX**: no hay navegación entre las tres aplicaciones (son procesos separados) ni
+  actualización en tiempo real salvo la presencia actual (cada 30 s). Al ejecutarlas desde el
+  classpath JavaFX muestra el aviso `Unsupported JavaFX configuration: classes were loaded from
+  'unnamed module'`, que es inofensivo. El backend mantiene CORS por si se añade un cliente web.
 - **Escalabilidad**: las consultas cargan los datos de la persona y evalúan en memoria (adecuado para
   cientos de personas, no para miles con rangos largos); el rango de consulta está limitado a 366 días.
 - **Datos**: todos los datos de ejemplo son ficticios. La base de datos se genera localmente en `data/`
