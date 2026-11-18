@@ -47,6 +47,11 @@ class FichajeViewTest {
         backend.close();
     }
 
+    /** Pulsa un boton aunque haya quedado fuera de la zona visible de un panel con scroll. */
+    private static void press(FxRobot robot, String id) {
+        robot.interact(() -> ((javafx.scene.control.Button) robot.lookup(id).query()).fire());
+    }
+
     private static void waitUntil(BooleanSupplier condition) throws Exception {
         WaitForAsyncUtils.waitFor(10, TimeUnit.SECONDS, condition::getAsBoolean);
         WaitForAsyncUtils.waitForFxEvents();
@@ -60,25 +65,25 @@ class FichajeViewTest {
     private void choose(FxRobot robot, String personId) throws Exception {
         robot.interact(() -> view.person.getItems().stream().filter(p -> p.id().equals(personId)).findFirst()
                 .ifPresent(view.person::setValue));
-        waitUntil(() -> view.person.getValue() != null && view.person.getValue().id().equals(personId)
-                && !view.presenceBox.getChildren().isEmpty());
+        // Espera a que el panel muestre el estado de la persona elegida (no el de la anterior).
+        waitUntil(() -> personId.equals(view.presenceBox.getUserData()));
     }
 
     @Test
     void clockInShowsPresenceAndRejectsDuplicates(FxRobot robot) throws Exception {
         waitUntil(() -> view.person.getItems().size() == 8);
         choose(robot, "EMP-001");
-        robot.clickOn("#entry");
+        press(robot, "#entry");
         waitUntil(() -> "OK".equals(view.message.code()) && view.events.getItems().size() == 1);
         assertEquals("PRESENT", presenceStatus(robot));
         assertEquals("LATE", robot.lookup("#today-status").query().getUserData());
         assertTrue(view.message.getText().contains("11:00"));
         Screenshots.save(scene.getRoot(), "fichaje");
 
-        robot.clickOn("#entry");
+        press(robot, "#entry");
         waitUntil(() -> "DUPLICATE_CLOCK_EVENT".equals(view.message.code()));
         Screenshots.save(scene.getRoot(), "fichaje-error");
-        robot.clickOn("#exit");
+        press(robot, "#exit");
         waitUntil(() -> "OK".equals(view.message.code()) && view.events.getItems().size() == 2);
     }
 
@@ -86,13 +91,13 @@ class FichajeViewTest {
     void showsTheErrorsOfTheContract(FxRobot robot) throws Exception {
         waitUntil(() -> view.person.getItems().size() == 8);
         choose(robot, "EMP-007");
-        robot.clickOn("#entry");
+        press(robot, "#entry");
         waitUntil(() -> "SCHEDULE_NOT_ASSIGNED".equals(view.message.code()));
         choose(robot, "EMP-008");
-        robot.clickOn("#entry");
+        press(robot, "#entry");
         waitUntil(() -> "DATE_OUT_OF_PERIOD".equals(view.message.code()));
         choose(robot, "EMP-001");
-        robot.clickOn("#exit");
+        press(robot, "#exit");
         waitUntil(() -> "INCONSISTENT_CLOCK_EVENT".equals(view.message.code()));
     }
 
@@ -107,11 +112,11 @@ class FichajeViewTest {
             view.manualTime.setText("15:00");
             view.note.setText("Olvido de fichaje");
         });
-        robot.clickOn("#exit");
+        press(robot, "#exit");
         waitUntil(() -> "OK".equals(view.message.code()));
         assertEquals("ABSENT", presenceStatus(robot), "hoy no ha venido a su turno de mañana");
         robot.interact(() -> view.manualTime.setText("8.30"));
-        robot.clickOn("#entry");
+        press(robot, "#entry");
         waitUntil(() -> view.message.getText().startsWith("Hora no válida"));
     }
 }

@@ -52,7 +52,7 @@ public final class FichajeView extends VBox {
     final HBox presenceBox = new HBox(18);
     final Button entry = new Button("Fichar ENTRADA");
     final Button exit = new Button("Fichar SALIDA");
-    final DatePicker manualDate = new DatePicker();
+    final DatePicker manualDate = Ui.datePicker();
     final TextField manualTime = new TextField();
     final TextField note = new TextField();
     final MessageBar message = new MessageBar();
@@ -116,7 +116,7 @@ public final class FichajeView extends VBox {
     }
 
     private void loadPeople() {
-        Background.run(api::listPeople, people -> {
+        Background.runAtStartup(api::listPeople, people -> {
             person.setItems(FXCollections.observableList(people));
             if (!people.isEmpty()) person.getSelectionModel().selectFirst();
         }, error -> message.error("No se pudo cargar la aplicación.", error));
@@ -128,6 +128,8 @@ public final class FichajeView extends VBox {
         LocalDate today = LocalDate.now(clock);
         Background.run(() -> new Snapshot(api.presenceOf(selected.id()), api.listClockEvents(selected.id(), today, today)),
                 snapshot -> {
+                    // Se descarta la respuesta si mientras tanto se eligio otra persona.
+                    if (person.getValue() == null || !person.getValue().id().equals(selected.id())) return;
                     showPresence(snapshot.presence());
                     events.setItems(FXCollections.observableList(snapshot.events()));
                 }, error -> message.error("Error al consultar.", error));
@@ -190,6 +192,7 @@ public final class FichajeView extends VBox {
         Label todayCaption = new Label("Hoy:");
         todayCaption.getStyleClass().add("sub");
         presenceBox.getChildren().setAll(status, new VBox(2, since, period), new HBox(6, todayCaption, today));
+        presenceBox.setUserData(p.personId());
         // Se resalta la accion esperada; la otra sigue disponible (sus errores se explican).
         entry.getStyleClass().remove("dimmed");
         exit.getStyleClass().remove("dimmed");

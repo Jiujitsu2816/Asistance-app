@@ -46,6 +46,7 @@
                             <glass.platform>Monocle</glass.platform>
                             <monocle.platform>Headless</monocle.platform>
                             <prism.order>sw</prism.order>
+                            <headless.geometry>1600x1200-32</headless.geometry>
                             <prism.text>t2k</prism.text>
                             <java.awt.headless>true</java.awt.headless>
                             <capturas.dir>${capturas.dir}</capturas.dir>

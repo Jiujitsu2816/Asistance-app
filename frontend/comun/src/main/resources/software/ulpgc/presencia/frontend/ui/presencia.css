@@ -117,7 +117,6 @@
 .table-row-cell {
     -fx-background-color: -c-surface;
     -fx-border-color: transparent transparent #eef0f4 transparent;
-    -fx-cell-size: 34px;
 }
 .table-row-cell:selected { -fx-background-color: -c-info-bg; }
 .table-row-cell .table-cell { -fx-text-fill: -c-text; -fx-padding: 6 8 6 8; -fx-alignment: center-left; }
@@ -140,3 +139,6 @@
 .scroll-pane, .scroll-pane > .viewport { -fx-background-color: transparent; }
 .titled-pane > .title { -fx-background-color: transparent; -fx-padding: 4 0 4 0; }
 .titled-pane > .content { -fx-background-color: transparent; -fx-border-color: transparent; }
+.table-row-cell .cell-text { -fx-fill: -c-text; }
+.table-row-cell:empty { -fx-background-color: -c-surface; }
+.table-row-cell .sub-text { -fx-fill: -c-muted; -fx-font-size: 12px; }

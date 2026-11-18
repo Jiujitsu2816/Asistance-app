@@ -7,6 +7,7 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.control.DatePicker;
 import javafx.scene.control.Label;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
@@ -16,6 +17,10 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import javafx.scene.text.Text;
+import javafx.util.converter.LocalDateStringConverter;
+
+import java.time.format.DateTimeFormatter;
 
 import java.util.Objects;
 import java.util.function.Function;
@@ -24,6 +29,8 @@ import java.util.function.Function;
 public final class Ui {
     public static final String STYLESHEET = Objects.requireNonNull(
             Ui.class.getResource("presencia.css"), "Falta presencia.css").toExternalForm();
+
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private Ui() { }
 
@@ -90,14 +97,31 @@ public final class Ui {
 
     public static <T> TableView<T> table(String placeholder) {
         TableView<T> table = new TableView<>();
-        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_FLEX_LAST_COLUMN);
+        // Reparte el ancho en proporcion al ancho preferido de cada columna.
+        table.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         table.setPlaceholder(new Label(placeholder));
         return table;
     }
 
+    /** Columna de texto; el texto largo se ajusta en varias lineas en lugar de cortarse. */
     public static <T> TableColumn<T, String> column(String title, Function<T, String> value) {
         TableColumn<T, String> column = new TableColumn<>(title);
         column.setCellValueFactory(cell -> new ReadOnlyStringWrapper(value.apply(cell.getValue())));
+        column.setCellFactory(c -> new TableCell<>() {
+            private final Text text = new Text();
+
+            {
+                text.getStyleClass().add("cell-text");
+                text.wrappingWidthProperty().bind(c.widthProperty().subtract(18));
+            }
+
+            @Override protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(null);
+                text.setText(item);
+                setGraphic(empty || item == null ? null : text);
+            }
+        });
         column.setSortable(false);
         return column;
     }
@@ -106,6 +130,7 @@ public final class Ui {
     public static <T> TableColumn<T, T> nodeColumn(String title, Function<T, Node> node) {
         TableColumn<T, T> column = new TableColumn<>(title);
         column.setCellValueFactory(cell -> new ReadOnlyObjectWrapper<>(cell.getValue()));
+        column.setPrefWidth(150);
         column.setCellFactory(c -> new TableCell<>() {
             @Override protected void updateItem(T item, boolean empty) {
                 super.updateItem(item, empty);
@@ -117,9 +142,23 @@ public final class Ui {
         return column;
     }
 
+    /** Columna numerica alineada a la derecha y sin ajuste de linea. */
     public static <T> TableColumn<T, String> numberColumn(String title, Function<T, String> value) {
-        TableColumn<T, String> column = column(title, value);
+        TableColumn<T, String> column = new TableColumn<>(title);
+        column.setCellValueFactory(cell -> new ReadOnlyStringWrapper(value.apply(cell.getValue())));
         column.getStyleClass().add("number");
+        column.setSortable(false);
+        column.setPrefWidth(110);
+        column.setMinWidth(95);
         return column;
+    }
+
+    /** Selector de fecha con formato dd/MM/yyyy, independiente del idioma del sistema. */
+    public static DatePicker datePicker() {
+        DatePicker picker = new DatePicker();
+        picker.setConverter(new LocalDateStringConverter(DATE, DATE));
+        picker.setPromptText("dd/mm/aaaa");
+        picker.setPrefWidth(150);
+        return picker;
     }
 }
