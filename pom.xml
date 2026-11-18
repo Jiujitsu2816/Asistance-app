@@ -21,6 +21,9 @@
         <jackson.version>2.18.1</jackson.version>
         <h2.version>2.3.232</h2.version>
         <junit.version>5.11.3</junit.version>
+        <javafx.version>21.0.5</javafx.version>
+        <testfx.version>4.0.18</testfx.version>
+        <monocle.version>21.0.2</monocle.version>
     </properties>
 
     <dependencyManagement>
@@ -41,6 +44,31 @@
                 <groupId>org.junit.jupiter</groupId>
                 <artifactId>junit-jupiter</artifactId>
                 <version>${junit.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-controls</artifactId>
+                <version>${javafx.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.testfx</groupId>
+                <artifactId>testfx-junit5</artifactId>
+                <version>${testfx.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.testfx</groupId>
+                <artifactId>openjfx-monocle</artifactId>
+                <version>${monocle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>software.ulpgc</groupId>
+                <artifactId>presencia-backend</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>software.ulpgc</groupId>
+                <artifactId>presencia-frontend-comun</artifactId>
+                <version>${project.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -67,6 +95,11 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-jar-plugin</artifactId>
                     <version>3.4.2</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.openjfx</groupId>
+                    <artifactId>javafx-maven-plugin</artifactId>
+                    <version>0.0.8</version>
                 </plugin>
                 <plugin>
                     <groupId>org.codehaus.mojo</groupId>

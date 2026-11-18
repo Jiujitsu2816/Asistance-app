@@ -1,0 +1,142 @@
+/* Estilo comun de las tres aplicaciones JavaFX. */
+.root {
+    -c-bg: #f3f5f9;
+    -c-surface: #ffffff;
+    -c-text: #1d2330;
+    -c-muted: #5d6676;
+    -c-border: #dde2ea;
+    -c-accent: #1f5fae;
+    -c-accent-dark: #174a88;
+    -c-ok: #1d7a46;   -c-ok-bg: #e3f4ea;
+    -c-info: #1f5fae; -c-info-bg: #e5eefa;
+    -c-warn: #8a5a00; -c-warn-bg: #fdf1d8;
+    -c-bad: #b3261e;  -c-bad-bg: #fbe7e5;
+    -c-muted-bg: #eceef2;
+    -fx-font-size: 13px;
+    -fx-accent: -c-accent;
+    -fx-focus-color: -c-accent;
+    -fx-faint-focus-color: transparent;
+}
+
+.label { -fx-text-fill: -c-text; }
+.app-root { -fx-background-color: -c-bg; }
+.app-header {
+    -fx-background-color: -c-surface;
+    -fx-border-color: transparent transparent -c-border transparent;
+    -fx-padding: 14 20 14 20;
+}
+.app-title { -fx-font-size: 19px; -fx-font-weight: bold; }
+.app-subtitle { -fx-text-fill: -c-muted; }
+.app-server { -fx-text-fill: -c-muted; -fx-font-size: 11px; }
+
+.card {
+    -fx-background-color: -c-surface;
+    -fx-background-radius: 10;
+    -fx-border-color: -c-border;
+    -fx-border-radius: 10;
+    -fx-padding: 16 18 18 18;
+}
+.card-title { -fx-font-size: 15px; -fx-font-weight: bold; }
+.hint, .sub, .field-label { -fx-text-fill: -c-muted; -fx-font-size: 12px; }
+
+.text-field, .combo-box, .date-picker, .spinner {
+    -fx-background-color: -c-surface;
+    -fx-background-radius: 7;
+    -fx-border-color: -c-border;
+    -fx-border-radius: 7;
+}
+.date-picker > .text-field, .spinner > .text-field { -fx-border-color: transparent; }
+.text-field:focused, .combo-box:focused, .date-picker:focused, .spinner:focused { -fx-border-color: -c-accent; }
+
+.button {
+    -fx-background-color: -c-accent;
+    -fx-text-fill: white;
+    -fx-font-weight: bold;
+    -fx-background-radius: 7;
+    -fx-padding: 8 16 8 16;
+    -fx-cursor: hand;
+}
+.button:hover { -fx-background-color: -c-accent-dark; }
+.button.secondary {
+    -fx-background-color: transparent;
+    -fx-text-fill: -c-accent;
+    -fx-border-color: -c-accent;
+    -fx-border-radius: 7;
+}
+.button.secondary:hover { -fx-background-color: -c-info-bg; }
+.button.big { -fx-font-size: 18px; -fx-padding: 16 30 16 30; -fx-min-width: 230; }
+.button.entry { -fx-background-color: -c-ok; }
+.button.exit { -fx-background-color: -c-bad; }
+.button.big.dimmed { -fx-background-color: -c-muted-bg; -fx-text-fill: -c-muted; }
+/* Los botones pequenos dentro de tablas. */
+.button.small { -fx-padding: 3 10 3 10; -fx-font-size: 12px; }
+.date-picker > .arrow-button, .combo-box > .arrow-button { -fx-background-color: transparent; }
+
+.badge {
+    -fx-background-radius: 999;
+    -fx-padding: 2 10 2 10;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+.badge.ok { -fx-background-color: -c-ok-bg; -fx-text-fill: -c-ok; }
+.badge.info { -fx-background-color: -c-info-bg; -fx-text-fill: -c-info; }
+.badge.warn { -fx-background-color: -c-warn-bg; -fx-text-fill: -c-warn; }
+.badge.bad { -fx-background-color: -c-bad-bg; -fx-text-fill: -c-bad; }
+.badge.muted { -fx-background-color: -c-muted-bg; -fx-text-fill: -c-muted; }
+.badge.large { -fx-font-size: 16px; -fx-padding: 5 14 5 14; }
+
+.message {
+    -fx-background-radius: 7;
+    -fx-padding: 10 14 10 14;
+    -fx-font-weight: bold;
+}
+.message.ok { -fx-background-color: -c-ok-bg; -fx-text-fill: -c-ok; }
+.message.error { -fx-background-color: -c-bad-bg; -fx-text-fill: -c-bad; }
+
+.total-value { -fx-font-size: 17px; -fx-font-weight: bold; }
+.label.negative { -fx-text-fill: -c-bad; }
+
+.table-view {
+    -fx-background-color: -c-surface;
+    -fx-border-color: -c-border;
+    -fx-border-radius: 6;
+    -fx-background-radius: 6;
+    -fx-table-cell-border-color: transparent;
+}
+.table-view .column-header-background { -fx-background-color: -c-bg; }
+.table-view .column-header, .table-view .filler {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent -c-border transparent;
+}
+.table-view .column-header .label {
+    -fx-text-fill: -c-muted;
+    -fx-font-weight: bold;
+    -fx-font-size: 11px;
+    -fx-alignment: center-left;
+}
+.table-row-cell {
+    -fx-background-color: -c-surface;
+    -fx-border-color: transparent transparent #eef0f4 transparent;
+    -fx-cell-size: 34px;
+}
+.table-row-cell:selected { -fx-background-color: -c-info-bg; }
+.table-row-cell .table-cell { -fx-text-fill: -c-text; -fx-padding: 6 8 6 8; -fx-alignment: center-left; }
+.table-column.number { -fx-alignment: center-right; }
+
+.tab-pane > .tab-header-area { -fx-padding: 6 12 0 12; }
+.tab-pane > .tab-header-area > .tab-header-background { -fx-background-color: -c-surface; }
+.tab-pane > .tab-header-area > .headers-region > .tab {
+    -fx-background-color: transparent;
+    -fx-padding: 6 14 6 14;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab:selected {
+    -fx-border-color: transparent transparent -c-accent transparent;
+    -fx-border-width: 0 0 3 0;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab .tab-label { -fx-text-fill: -c-muted; -fx-font-size: 14px; }
+.tab-pane > .tab-header-area > .headers-region > .tab:selected .tab-label { -fx-text-fill: -c-accent; -fx-font-weight: bold; }
+.tab-pane:focused > .tab-header-area > .headers-region > .tab:selected .focus-indicator { -fx-border-color: transparent; }
+
+.scroll-pane, .scroll-pane > .viewport { -fx-background-color: transparent; }
+.titled-pane > .title { -fx-background-color: transparent; -fx-padding: 4 0 4 0; }
+.titled-pane > .content { -fx-background-color: transparent; -fx-border-color: transparent; }
