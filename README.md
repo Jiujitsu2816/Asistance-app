@@ -52,20 +52,9 @@ Opcional: Node.js + Playwright, solo para el recorrido automático con navegador
 
 ## 3. Cómo compilar y ejecutar
 
-### Arranque rápido (todo en uno)
-
-- **Windows**: doble clic en **`iniciar.bat`**.
-- **Linux / macOS**: `./iniciar.sh`.
-- **IntelliJ**: configuración **"Lanzador (todo en uno)"**.
-
-La primera vez compila el proyecto (unos minutos). Después arranca el backend y la aplicación web y
-**abre el navegador** en <http://localhost:8081/>. Se detiene con `Ctrl+C` o cerrando la ventana de la
-consola. Solo hace falta un JDK 21+ (`JAVA_HOME` definido o `java` en el PATH).
-
-El lanzador (`lanzador/`, clase `software.ulpgc.presencia.lanzador.Lanzador`) es solo una comodidad:
-ejecuta los dos servidores en el mismo proceso, pero la aplicación web sigue hablando con el backend
-por HTTP, exactamente igual que cuando se ejecutan por separado. Tras modificar el código hay que
-recompilar (`.\mvnw.cmd clean package`) para que `iniciar.bat` use la versión nueva.
+El sistema son **dos procesos independientes**: el **backend** (API HTTP/JSON en el puerto 8080) y la
+**aplicación web** (puerto 8081). Primero se arranca el backend y después la web; luego se abre
+<http://localhost:8081/> en el navegador. Los pasos están más abajo (IntelliJ o terminal).
 
 ### Primer uso
 
@@ -81,8 +70,7 @@ recompilar (`.\mvnw.cmd clean package`) para que `iniciar.bat` use la versión n
 1. *File → Open…* y selecciona la carpeta del repositorio (detecta el `pom.xml` multimódulo).
 2. *File → Project Structure → Project SDK*: un JDK 21 o superior.
 3. Configuraciones compartidas de la carpeta `.run/`:
-   - **Lanzador (todo en uno)**: backend + aplicación web y abre el navegador.
-   - **Sistema completo**: lanza **Backend** y **Aplicacion web** como dos procesos separados.
+   - **Sistema completo**: lanza **Backend** y **Aplicacion web** a la vez, como dos procesos separados.
    - **Backend** (`software.ulpgc.presencia.BackendApplication`) y **Aplicacion web**
      (`software.ulpgc.presencia.frontend.FrontendServer`) por separado.
    - **Todas las pruebas**: `mvn test`.
@@ -104,21 +92,21 @@ En Linux o macOS:
 ./mvnw clean package
 ```
 
-El empaquetado compila, ejecuta las pruebas y genera los jars ejecutables. Todo en uno:
-
-```bash
-java -jar lanzador/target/presencia-lanzador-app.jar
-```
-
-O los dos procesos por separado (cada uno en su terminal):
+El empaquetado compila, ejecuta las pruebas y genera dos jars ejecutables. Se arranca cada uno en su
+propia terminal, desde la carpeta del proyecto. Primero el backend:
 
 ```bash
 java -jar backend/target/presencia-backend-app.jar
 ```
 
+Espera al mensaje `Backend de control de presencia escuchando en http://localhost:8080/api` y, en otra
+terminal, la aplicación web:
+
 ```bash
-java -cp frontend/target/presencia-frontend.jar software.ulpgc.presencia.frontend.FrontendServer
+java -jar frontend/target/presencia-frontend.jar
 ```
+
+Después abre <http://localhost:8081/> en el navegador. Cada proceso se detiene con `Ctrl+C`.
 
 | Proceso | Dirección |
 |---|---|
@@ -146,7 +134,7 @@ o con una variable de entorno (mayúsculas y `_`), sin tocar el código ni usar 
 | `presencia.api.url` | `PRESENCIA_API_URL` | `http://localhost:8080/api` | URL de la API que usa la aplicación web (se publica en `/config.js`) |
 
 Ejemplo: `java -Dpresencia.http.port=9090 -jar backend/target/presencia-backend-app.jar` y
-`java -Dpresencia.api.url=http://localhost:9090/api -cp frontend/target/presencia-frontend.jar software.ulpgc.presencia.frontend.FrontendServer`.
+`java -Dpresencia.api.url=http://localhost:9090/api -jar frontend/target/presencia-frontend.jar`.
 
 Para **empezar de cero** basta con borrar la carpeta `data/` con el backend parado.
 
@@ -249,8 +237,7 @@ sustituibles.
 
 ```
 control-presencia/
-├── pom.xml                         POM padre (módulos backend, frontend y lanzador; JDK 21)
-├── iniciar.bat / iniciar.sh        Arranque todo en uno (doble clic)
+├── pom.xml                         POM padre (módulos backend y frontend; JDK 21)
 ├── mvnw, mvnw.cmd, .mvn/           Maven Wrapper (no hace falta instalar Maven)
 ├── .run/                           Configuraciones de ejecución de IntelliJ
 ├── backend/                        presencia-backend (API HTTP/JSON, arquitectura hexagonal)
@@ -280,7 +267,6 @@ control-presencia/
 │       ├── modulos/horarios/       Definición de horarios, asignaciones y festivos
 │       ├── modulos/personal/       Personas, accesos y centros de trabajo
 │       └── shared/                 api-client.js, session.js, ui.js, styles.css
-├── lanzador/                       presencia-lanzador: backend + web en un proceso y abre el navegador
 └── docs/                           capturas/ y e2e/recorrido.cjs (recorrido con navegador)
 ```
 
@@ -302,7 +288,6 @@ control-presencia/
 | `WorkplaceAdministrationService` | Centros de trabajo |
 | `HttpPresenceApi` (JS) | Adaptador de comunicación sustituible de la aplicación web |
 | `app.js` y `modulos/*` (JS) | Contenedor por perfil y módulos de fichaje, consulta, horarios y personal |
-| `Lanzador` | Arranque todo en uno (backend + web) |
 
 ## 7. Modelo de datos
 
@@ -577,7 +562,7 @@ un fichaje de origen `ADMIN` y hora indicada.
 
 ## 12. Capturas
 
-Tomadas con un navegador sobre el sistema real (lanzador, base de datos nueva con los datos de ejemplo)
+Tomadas con un navegador sobre el sistema real (backend y web arrancados, base de datos nueva con los datos de ejemplo)
 por el recorrido automático `docs/e2e/recorrido.cjs`.
 
 ### Inicio de sesión
@@ -657,8 +642,8 @@ Fichaje en nombre de una persona sin horario: rechazado con `SCHEDULE_NOT_ASSIGN
 
 ### Recorrido automático con navegador (`docs/e2e/recorrido.cjs`)
 
-Con el sistema arrancado sobre una base de datos nueva (`java -Dpresencia.no-browser=true -jar
-lanzador/target/presencia-lanzador-app.jar`) y Node.js + Playwright:
+Con el backend y la web arrancados sobre una base de datos nueva (sin carpeta `data/`) y Node.js +
+Playwright:
 
 ```bash
 node docs/e2e/recorrido.cjs docs/capturas
@@ -676,7 +661,7 @@ que no hay errores de JavaScript. También se revisó la vista móvil (sin scrol
 | Comprobación | Resultado |
 |---|---|
 | Compila y pasan las pruebas desde un `git clone` limpio | ✔ |
-| `iniciar.sh` compila la primera vez, arranca backend y web | ✔ |
+| El backend y la web arrancan con `java -jar` como procesos separados y se comunican | ✔ |
 | Primer arranque: se pide crear el responsable; después ya no (`SETUP_ALREADY_DONE`) | ✔ |
 | Se cargan los tres tipos de horario de ejemplo (más la guardia localizada) y cuatro centros | ✔ |
 | Horarios asignados a personas ficticias (individual y por equipo) con centro | ✔ |

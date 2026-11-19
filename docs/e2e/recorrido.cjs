@@ -1,6 +1,7 @@
 // Recorrido de extremo a extremo de la aplicacion web con un navegador (Playwright).
 // Requiere el sistema arrancado con una base de datos NUEVA (datos de ejemplo, sin cuentas):
-//   java -Dpresencia.no-browser=true -jar lanzador/target/presencia-lanzador-app.jar
+//   java -jar backend/target/presencia-backend-app.jar     (en una terminal)
+//   java -jar frontend/target/presencia-frontend.jar       (en otra)
 //   node docs/e2e/recorrido.cjs [carpeta-de-capturas]
 // Crea el responsable, da acceso a EMP-001, ficha como empleado y revisa los modulos del
 // responsable. Falla (codigo de salida 1) si algo no aparece o hay errores de JavaScript.
