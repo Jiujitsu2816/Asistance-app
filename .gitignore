@@ -1,40 +1,41 @@
+### Maven / build outputs ###
 target/
-/data/
-!.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
-.kotlin
+/out/
+/build/
+/bin/
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.exe
+*.log
+*.tmp
+dependency-reduced-pom.xml
+
+### Datos locales (base de datos H2 generada al ejecutar) ###
+data/
+*.mv.db
+*.trace.db
+*.lock.db
 
 ### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
-*.iws
+# La configuracion del IDE se regenera al importar el pom.xml.
+# Solo se versionan las configuraciones de ejecucion compartidas de .run/
+.idea/
 *.iml
+*.iws
 *.ipr
 
-### Eclipse ###
-.apt_generated
+### Eclipse / VS Code ###
 .classpath
-.factorypath
 .project
-.settings
-.springBeans
-.sts4-cache
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### VS Code ###
+.settings/
 .vscode/
 
-### Mac OS ###
+### Node (solo para el script opcional de capturas) ###
+node_modules/
+
+### Sistema operativo ###
 .DS_Store
+Thumbs.db
