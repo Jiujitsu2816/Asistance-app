@@ -12,7 +12,7 @@
 
     <artifactId>presencia-lanzador</artifactId>
     <name>Control de presencia - lanzador todo en uno</name>
-    <description>Arranca el backend y una ventana desde la que abrir las tres aplicaciones.</description>
+    <description>Arranca el backend y la aplicacion web en un solo proceso y abre el navegador.</description>
 
     <properties>
         <app.launcher>software.ulpgc.presencia.lanzador.Lanzador</app.launcher>
@@ -25,31 +25,13 @@
         </dependency>
         <dependency>
             <groupId>software.ulpgc</groupId>
-            <artifactId>presencia-fichaje</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>software.ulpgc</groupId>
-            <artifactId>presencia-consulta</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>software.ulpgc</groupId>
-            <artifactId>presencia-horarios</artifactId>
-            <version>${project.version}</version>
+            <artifactId>presencia-frontend</artifactId>
         </dependency>
     </dependencies>
 
     <build>
         <finalName>presencia-lanzador</finalName>
         <plugins>
-            <plugin>
-                <groupId>org.openjfx</groupId>
-                <artifactId>javafx-maven-plugin</artifactId>
-                <configuration>
-                    <mainClass>${app.launcher}</mainClass>
-                </configuration>
-            </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>

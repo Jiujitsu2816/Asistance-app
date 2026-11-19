@@ -11,17 +11,8 @@
     </parent>
 
     <artifactId>presencia-frontend</artifactId>
-    <packaging>pom</packaging>
-    <name>Control de presencia - aplicaciones JavaFX</name>
-    <description>Tres aplicaciones JavaFX independientes (fichaje, consulta y horarios) y un modulo comun
-        con el cliente de la API y los componentes visuales compartidos.</description>
-
-    <modules>
-        <module>comun</module>
-        <module>fichaje</module>
-        <module>consulta</module>
-        <module>horarios</module>
-    </modules>
+    <name>Control de presencia - aplicacion web</name>
+    <description>Aplicacion web unica (inicio de sesion por roles) con los modulos de fichaje, consulta, horarios y personal.</description>
 
     <dependencies>
         <dependency>
@@ -32,28 +23,26 @@
     </dependencies>
 
     <build>
-        <pluginManagement>
-            <plugins>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-surefire-plugin</artifactId>
-                    <configuration>
-                        <!-- Las pruebas de interfaz se ejecutan sin ventanas (Monocle headless).
-                             Las capturas del README solo se generan si se define capturas.dir. -->
-                        <systemPropertyVariables>
-                            <testfx.robot>glass</testfx.robot>
-                            <testfx.headless>true</testfx.headless>
-                            <glass.platform>Monocle</glass.platform>
-                            <monocle.platform>Headless</monocle.platform>
-                            <prism.order>sw</prism.order>
-                            <headless.geometry>1600x1200-32</headless.geometry>
-                            <prism.text>t2k</prism.text>
-                            <java.awt.headless>true</java.awt.headless>
-                            <capturas.dir>${capturas.dir}</capturas.dir>
-                        </systemPropertyVariables>
-                    </configuration>
-                </plugin>
-            </plugins>
-        </pluginManagement>
+        <finalName>presencia-frontend</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <configuration>
+                    <mainClass>software.ulpgc.presencia.frontend.FrontendServer</mainClass>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <configuration>
+                    <archive>
+                        <manifest>
+                            <mainClass>software.ulpgc.presencia.frontend.FrontendServer</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+        </plugins>
     </build>
 </project>

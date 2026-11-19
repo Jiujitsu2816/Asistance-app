@@ -1,68 +1,65 @@
 package software.ulpgc.presencia.lanzador;
 
-import javafx.application.Application;
 import software.ulpgc.presencia.Backend;
+import software.ulpgc.presencia.frontend.FrontendServer;
 import software.ulpgc.presencia.infrastructure.config.AppConfig;
 
+import java.awt.Desktop;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Clock;
-import java.time.Duration;
 
 /**
- * Arranque "todo en uno": inicia el backend en este mismo proceso y abre una ventana desde la
- * que lanzar las tres aplicaciones. Las aplicaciones siguen comunicandose con el backend por
- * HTTP, igual que si se ejecutaran por separado.
- *
- * <p>Si el puerto ya esta ocupado por un backend en marcha, se reutiliza ese backend.
+ * Arranque "todo en uno": inicia el backend (API HTTP/JSON, el broker que responde a la
+ * aplicacion) y el servidor de la aplicacion web en este mismo proceso, y abre el navegador.
+ * La aplicacion web sigue hablando con el backend por HTTP, igual que si se ejecutaran por
+ * separado. Se detiene con Ctrl+C o cerrando la ventana de la consola.
  */
 public final class Lanzador {
-    private static Backend backend;
-    static String status;
-
     private Lanzador() { }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         AppConfig config = new AppConfig();
-        String url = "http://" + config.host() + ":" + config.port() + "/api";
+        Backend backend = new Backend(config, Clock.system(config.zone())).start();
+        String api = "http://" + config.host() + ":" + backend.port() + "/api";
+        String host = setting("presencia.frontend.host", "localhost");
+        int port = Integer.parseInt(setting("presencia.frontend.port", "8081"));
+        FrontendServer web;
         try {
-            backend = new Backend(config, Clock.system(config.zone())).start();
-            url = "http://" + config.host() + ":" + backend.port() + "/api";
-            status = "Backend iniciado en " + url;
+            web = new FrontendServer(host, port, api);
         } catch (Exception e) {
-            if (isRunning(url)) {
-                status = "Se usa el backend que ya estaba en marcha en " + url;
-            } else {
-                status = "No se pudo iniciar el backend: " + e.getMessage();
-                System.err.println(status);
-            }
-        }
-        System.out.println(status);
-        // Las tres aplicaciones leen la URL de la API de esta propiedad (ApiConfig).
-        System.setProperty("presencia.api.url", url);
-        Runtime.getRuntime().addShutdownHook(new Thread(Lanzador::stopBackend, "backend-shutdown"));
-        Application.launch(LanzadorApp.class, args);
-        stopBackend();
-        System.exit(0);
-    }
-
-    private static synchronized void stopBackend() {
-        if (backend != null) {
             backend.close();
-            backend = null;
+            throw new IllegalStateException("No se pudo abrir el puerto " + port + " de la aplicacion web: " + e.getMessage(), e);
         }
+        web.start();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            web.close();
+            backend.close();
+        }, "apagado"));
+
+        String url = "http://" + host + ":" + web.port() + "/";
+        System.out.println();
+        System.out.println("  Control de presencia en marcha");
+        System.out.println("  Aplicacion: " + url);
+        System.out.println("  API:        " + api);
+        System.out.println("  Pulsa Ctrl+C (o cierra esta ventana) para detenerlo.");
+        System.out.println();
+        openBrowser(url);
     }
 
-    private static boolean isRunning(String url) {
+    private static String setting(String key, String fallback) {
+        String value = System.getProperty(key);
+        if (value == null) value = System.getenv(key.toUpperCase().replace('.', '_').replace('-', '_'));
+        return value == null || value.isBlank() ? fallback : value.strip();
+    }
+
+    private static void openBrowser(String url) {
+        if (Boolean.getBoolean("presencia.no-browser")) return;
         try {
-            HttpResponse<Void> response = HttpClient.newHttpClient().send(
-                    HttpRequest.newBuilder(URI.create(url + "/health")).timeout(Duration.ofSeconds(3)).build(),
-                    HttpResponse.BodyHandlers.discarding());
-            return response.statusCode() == 200;
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE))
+                Desktop.getDesktop().browse(URI.create(url));
+            else System.out.println("  Abre la direccion anterior en el navegador.");
         } catch (Exception e) {
-            return false;
+            System.out.println("  No se pudo abrir el navegador automaticamente; abre " + url);
         }
     }
 }

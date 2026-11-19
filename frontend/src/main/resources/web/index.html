@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Control de presencia</title>
+  <link rel="stylesheet" href="/shared/styles.css">
+  <script src="/config.js"></script>
+  <script type="module" src="/login.js"></script>
+</head>
+<body class="login-page">
+<main class="login">
+  <h1>Control de presencia</h1>
+  <p class="hint">Responsables: personal, centros, horarios y consultas. Empleados: su horario y su fichaje.</p>
+
+  <section class="card" id="setup" hidden>
+    <h2>Primer arranque: crea la cuenta de responsable</h2>
+    <p class="hint">Todavía no existe ningún responsable. Esta cuenta podrá dar de alta al personal y crear sus accesos.
+      Usa una clave de al menos 8 caracteres.</p>
+    <form id="setup-form" class="stack">
+      <label>Usuario <input id="setup-user" autocomplete="username" required minlength="3" maxlength="32"></label>
+      <label>Clave <input id="setup-password" type="password" autocomplete="new-password" required minlength="8"></label>
+      <label>Repite la clave <input id="setup-password2" type="password" autocomplete="new-password" required minlength="8"></label>
+      <button type="submit">Crear responsable y entrar</button>
+    </form>
+  </section>
+
+  <section class="card" id="login" hidden>
+    <h2>Iniciar sesión</h2>
+    <form id="login-form" class="stack">
+      <label>Usuario <input id="login-user" autocomplete="username" required></label>
+      <label>Clave <input id="login-password" type="password" autocomplete="current-password" required></label>
+      <button type="submit">Entrar</button>
+    </form>
+  </section>
+
+  <div id="message"></div>
+</main>
+</body>
+</html>

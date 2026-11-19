@@ -1,9 +1,12 @@
 # Control de presencia
 
 Proyecto extraordinario de Ingeniería de Software 2 (EII, ULPGC). Sistema de control de presencia
-con un **backend HTTP/JSON** de arquitectura hexagonal, una **base de datos H2** y **tres aplicaciones
-JavaFX independientes**: registro de asistencia, consulta de presencia e incidencias, y definición de
-horarios.
+formado por un **backend HTTP/JSON** de arquitectura hexagonal (el *broker* que responde a todas las
+peticiones), una **base de datos H2** y una **aplicación web única con inicio de sesión**: según quién
+entre, se muestra el perfil de **responsable** (personal, centros de trabajo, horarios, consultas y
+correcciones) o de **empleado** (su horario, fichar entrada y salida y sus registros). La aplicación
+está dividida en **módulos frontend independientes**: registro de asistencia, consulta de presencia e
+incidencias, definición de horarios, y personal y centros.
 
 ## Índice
 
@@ -17,7 +20,7 @@ horarios.
 8. [Tipos de horario soportados](#8-tipos-de-horario-soportados)
 9. [Reglas de cómputo implementadas](#9-reglas-de-cómputo-implementadas)
 10. [Contrato de comunicación](#10-contrato-de-comunicación)
-11. [Idea propia](#11-idea-propia-incidencias-justificadas-y-calendario-de-festivos)
+11. [Ideas propias](#11-ideas-propias)
 12. [Capturas](#12-capturas)
 13. [Verificación realizada](#13-verificación-realizada)
 14. [Límites conocidos](#14-límites-conocidos)
@@ -38,16 +41,14 @@ localizadas), además de festivos e incidencias justificadas.
 
 | Herramienta / librería | Versión | Uso |
 |---|---|---|
-| JDK | **21 o superior** (se compila con `release 21`; funciona también con JDK 25/26) | Lenguaje y servidor HTTP del JDK (`com.sun.net.httpserver`) |
-| Maven | 3.9 o superior (IntelliJ IDEA ya lo incluye) | Compilación, pruebas y empaquetado |
-| JavaFX (`javafx-controls`) | 21.0.5 | Interfaz de las tres aplicaciones (Maven la descarga; no hay que instalarla) |
-| Jackson (`jackson-databind`, `jackson-datatype-jsr310`) | 2.18.1 | JSON del contrato HTTP (backend y cliente de los frontends) |
+| JDK | **21 o superior** (se compila con `release 21`; funciona también con JDK 25/26) | Lenguaje y servidores HTTP del JDK (`com.sun.net.httpserver`) |
+| Maven | 3.9 (incluido con el **Maven Wrapper** `mvnw`/`mvnw.cmd`; no hay que instalarlo) | Compilación, pruebas y empaquetado |
+| Jackson (`jackson-databind`, `jackson-datatype-jsr310`) | 2.18.1 | JSON del contrato HTTP |
 | H2 Database | 2.3.232 | Base de datos embebida en fichero |
 | JUnit Jupiter | 5.11.3 | Pruebas automatizadas |
-| TestFX + Monocle | 4.0.18 / 21.0.2 | Pruebas de interfaz JavaFX sin abrir ventanas (solo en pruebas) |
+| Navegador web | cualquiera actual | Aplicación (HTML + JavaScript con módulos ES, sin librerías ni compilación) |
 
-No hacen falta servidores externos: la base de datos se crea sola en `./data/`. Las dependencias de
-JavaFX incluyen las librerías nativas del sistema donde se compila (Windows, macOS o Linux).
+Opcional: Node.js + Playwright, solo para el recorrido automático con navegador (`docs/e2e/recorrido.cjs`).
 
 ## 3. Cómo compilar y ejecutar
 
@@ -57,37 +58,39 @@ JavaFX incluyen las librerías nativas del sistema donde se compila (Windows, ma
 - **Linux / macOS**: `./iniciar.sh`.
 - **IntelliJ**: configuración **"Lanzador (todo en uno)"**.
 
-La primera vez compila el proyecto (unos minutos). Después arranca el backend y abre una ventana con
-botones para abrir **Registro de asistencia**, **Consulta de presencia** y **Definición de horarios**
-(o las tres a la vez). Al cerrar esa ventana se cierran las aplicaciones y el backend. Solo hace falta
-un JDK 21+ (`JAVA_HOME` definido o `java` en el PATH).
+La primera vez compila el proyecto (unos minutos). Después arranca el backend y la aplicación web y
+**abre el navegador** en <http://localhost:8081/>. Se detiene con `Ctrl+C` o cerrando la ventana de la
+consola. Solo hace falta un JDK 21+ (`JAVA_HOME` definido o `java` en el PATH).
 
-El lanzador (`lanzador/`, clase `software.ulpgc.presencia.lanzador.Lanzador`) solo es una comodidad:
-ejecuta el backend y las aplicaciones en el mismo proceso, pero las aplicaciones siguen hablando con el
-backend por HTTP, exactamente igual que cuando se ejecutan por separado. Si el puerto 8080 ya tiene un
-backend en marcha, lo reutiliza. Tras modificar el código hay que recompilar (`.\mvnw.cmd clean package`)
-para que `iniciar.bat` use la versión nueva.
+El lanzador (`lanzador/`, clase `software.ulpgc.presencia.lanzador.Lanzador`) es solo una comodidad:
+ejecuta los dos servidores en el mismo proceso, pero la aplicación web sigue hablando con el backend
+por HTTP, exactamente igual que cuando se ejecutan por separado. Tras modificar el código hay que
+recompilar (`.\mvnw.cmd clean package`) para que `iniciar.bat` use la versión nueva.
 
+### Primer uso
+
+1. La primera vez la aplicación muestra **"Primer arranque: crea la cuenta de responsable"**: elige
+   usuario y clave (mínimo 8 caracteres). No hay usuarios ni claves predefinidos en el repositorio.
+2. Como responsable, en **Personal y centros → Accesos a la aplicación**, crea el acceso de un empleado
+   (por ejemplo `EMP-001`) con un usuario y una clave inicial.
+3. Cierra sesión y entra con ese usuario: verás **Mi fichaje** (fichar, estado actual y mi horario) y
+   **Mis registros**.
 
 ### Con IntelliJ IDEA
 
-1. *File → Open…* y selecciona la carpeta del repositorio (IntelliJ detecta el `pom.xml` multimódulo).
+1. *File → Open…* y selecciona la carpeta del repositorio (detecta el `pom.xml` multimódulo).
 2. *File → Project Structure → Project SDK*: un JDK 21 o superior.
-3. En el desplegable de ejecución aparecen las configuraciones compartidas de la carpeta `.run/`:
-   - **Sistema completo**: arranca el backend y las tres aplicaciones a la vez (las apps esperan
-     unos segundos a que el backend esté escuchando).
-   - **Backend** (`software.ulpgc.presencia.BackendApplication`).
-   - **App Fichaje**, **App Consulta** y **App Horarios** (`…frontend.<app>.<App>Launcher`).
-   - **Todas las pruebas**: `mvn test` de todos los módulos.
+3. Configuraciones compartidas de la carpeta `.run/`:
+   - **Lanzador (todo en uno)**: backend + aplicación web y abre el navegador.
+   - **Sistema completo**: lanza **Backend** y **Aplicacion web** como dos procesos separados.
+   - **Backend** (`software.ulpgc.presencia.BackendApplication`) y **Aplicacion web**
+     (`software.ulpgc.presencia.frontend.FrontendServer`) por separado.
+   - **Todas las pruebas**: `mvn test`.
 
-Las configuraciones usan `$PROJECT_DIR$` como directorio de trabajo, por lo que la base de datos se
-crea en `<repositorio>/data/` (excluida de Git). Cada aplicación tiene una clase `…Launcher` que no
-extiende `Application`, así se ejecuta desde el classpath sin configurar el *module-path* de JavaFX.
+Usan `$PROJECT_DIR$` como directorio de trabajo, así que la base de datos se crea en
+`<repositorio>/data/` (excluida de Git).
 
 ### Desde la terminal
-
-No hace falta instalar Maven: el repositorio incluye el **Maven Wrapper** (`mvnw` / `mvnw.cmd`), que
-descarga Maven 3.9.11 la primera vez. Solo se necesita un JDK 21+ con `JAVA_HOME` configurado.
 
 En Windows (PowerShell):
 
@@ -101,40 +104,31 @@ En Linux o macOS:
 ./mvnw clean package
 ```
 
-(Si Maven está instalado, `mvn clean package` es equivalente.) El empaquetado compila y ejecuta las 64 pruebas (las de interfaz se ejecutan sin ventanas) y
-genera un jar ejecutable por proceso. Cada uno se lanza en una terminal distinta:
+El empaquetado compila, ejecuta las pruebas y genera los jars ejecutables. Todo en uno:
+
+```bash
+java -jar lanzador/target/presencia-lanzador-app.jar
+```
+
+O los dos procesos por separado (cada uno en su terminal):
 
 ```bash
 java -jar backend/target/presencia-backend-app.jar
 ```
 
 ```bash
-java -jar frontend/fichaje/target/presencia-fichaje-app.jar
+java -cp frontend/target/presencia-frontend.jar software.ulpgc.presencia.frontend.FrontendServer
 ```
-
-```bash
-java -jar frontend/consulta/target/presencia-consulta-app.jar
-```
-
-```bash
-java -jar frontend/horarios/target/presencia-horarios-app.jar
-```
-
-El backend se ejecuta de forma independiente (se puede usar la API con `curl`). Sin empaquetar también
-vale `mvn -pl backend compile exec:java` y, para cada aplicación, `mvn -pl frontend/fichaje javafx:run`
-(después de un `mvn install -DskipTests`).
 
 | Proceso | Dirección |
 |---|---|
-| Backend (API HTTP/JSON) | <http://localhost:8080/api/health> |
-| Registro de asistencia | aplicación JavaFX `presencia-fichaje` |
-| Consulta de presencia e incidencias | aplicación JavaFX `presencia-consulta` |
-| Definición de horarios | aplicación JavaFX `presencia-horarios` |
+| Aplicación web (inicio de sesión) | <http://localhost:8081/> |
+| API del backend | <http://localhost:8080/api/health> |
 
 ### Configuración: puertos, base de datos y datos iniciales
 
-Los valores por defecto del backend están en `backend/src/main/resources/application.properties`;
-la URL de la API de las aplicaciones está en `ApiConfig` (por defecto `http://localhost:8080/api`). Cada clave se puede sobrescribir con `-Dclave=valor`
+Los valores por defecto están en `backend/src/main/resources/application.properties` y
+`frontend/src/main/resources/frontend.properties`. Cada clave se puede sobrescribir con `-Dclave=valor`
 o con una variable de entorno (mayúsculas y `_`), sin tocar el código ni usar rutas absolutas:
 
 | Clave | Variable de entorno | Por defecto | Descripción |
@@ -146,15 +140,20 @@ o con una variable de entorno (mayúsculas y `_`), sin tocar el código ni usar 
 | `presencia.db.user` / `presencia.db.password` | `PRESENCIA_DB_USER` / `PRESENCIA_DB_PASSWORD` | `sa` / vacío | Credenciales de la BD local de desarrollo |
 | `presencia.zone` | `PRESENCIA_ZONE` | `Atlantic/Canary` | Zona horaria de los horarios |
 | `presencia.seed` | `PRESENCIA_SEED` | `true` | Cargar datos de ejemplo si la BD está vacía |
-| `presencia.api.url` | `PRESENCIA_API_URL` | `http://localhost:8080/api` | URL de la API que usan las tres aplicaciones |
+| `presencia.security.session-minutes` | `PRESENCIA_SECURITY_SESSION_MINUTES` | `720` | Duración de una sesión iniciada |
+| `presencia.security.pbkdf2-iterations` | `PRESENCIA_SECURITY_PBKDF2_ITERATIONS` | `210000` | Coste de PBKDF2 al proteger las claves |
+| `presencia.frontend.port` | `PRESENCIA_FRONTEND_PORT` | `8081` | Puerto de la aplicación web |
+| `presencia.api.url` | `PRESENCIA_API_URL` | `http://localhost:8080/api` | URL de la API que usa la aplicación web (se publica en `/config.js`) |
 
 Ejemplo: `java -Dpresencia.http.port=9090 -jar backend/target/presencia-backend-app.jar` y
-`java -Dpresencia.api.url=http://localhost:9090/api -jar frontend/fichaje/target/presencia-fichaje-app.jar`.
+`java -Dpresencia.api.url=http://localhost:9090/api -cp frontend/target/presencia-frontend.jar software.ulpgc.presencia.frontend.FrontendServer`.
 
 Para **empezar de cero** basta con borrar la carpeta `data/` con el backend parado.
 
 **Datos iniciales** (todos ficticios, cargados a través de los casos de uso y con fechas relativas al
-día de arranque para que la demostración funcione cualquier día):
+día de arranque para que la demostración funcione cualquier día). Se cargan personas, cuatro centros
+de trabajo (Oficina central, Restaurante del puerto, Hospital - planta 3, Hospital - urgencias),
+horarios, asignaciones, festivos e historial de fichajes; **no se cargan cuentas de acceso**:
 
 | Persona | Equipo | Horario | Situación de ejemplo |
 |---|---|---|---|
@@ -173,33 +172,38 @@ También se cargan cuatro festivos del calendario y la historia de los últimos 
 
 ```mermaid
 flowchart LR
-    subgraph Escritorio["Aplicaciones JavaFX (procesos independientes)"]
-        F1["presencia-fichaje<br/>Registro de asistencia"]
-        F2["presencia-consulta<br/>Consulta de presencia"]
-        F3["presencia-horarios<br/>Definición de horarios"]
-        C["presencia-frontend-comun<br/>PresenceApi + HttpPresenceApi<br/>(adaptador de comunicación) y estilo"]
-        F1 & F2 & F3 --> C
+    subgraph Navegador["Navegador (responsable o empleado)"]
+        L["Inicio de sesión<br/>/index.html"]
+        A["Aplicación /app/<br/>menú según el perfil"]
+        M1["módulo fichaje<br/>Registro de asistencia"]
+        M2["módulo consulta<br/>Presencia e incidencias"]
+        M3["módulo horarios<br/>Definición de horarios"]
+        M4["módulo personal<br/>Personal, accesos y centros"]
+        C["shared/api-client.js<br/>adaptador de comunicación"]
+        L --> C
+        A --> M1 & M2 & M3 & M4 --> C
     end
-    BE["presencia-backend<br/>API HTTP/JSON :8080"]
+    FS["presencia-frontend<br/>servidor web :8081<br/>(HTML, JS, /config.js)"]
+    BE["presencia-backend<br/>API HTTP/JSON :8080<br/>(broker)"]
     DB[("H2 en fichero<br/>./data/presencia.mv.db")]
-    C -- "HTTP + JSON (contrato §10)<br/>cabecera X-Actor" --> BE
+    FS -. sirve los ficheros .-> Navegador
+    C -- "HTTP + JSON (contrato §10)<br/>Authorization: Bearer token" --> BE
     BE -- JDBC --> DB
 ```
 
-- **Tres aplicaciones frontend diferenciadas**: cada una es un módulo Maven y un proceso propio con su
-  ventana, su `Launcher` y su jar ejecutable. No comparten estado; solo comparten el módulo
-  `presencia-frontend-comun`.
-- **Los frontends nunca acceden a la base de datos**: solo usan la interfaz `PresenceApi`
-  (`frontend/comun/.../api/PresenceApi.java`). Su implementación `HttpPresenceApi` es el adaptador de
-  comunicación (cliente HTTP del JDK + Jackson); las vistas la reciben por constructor, por lo que se
-  puede sustituir (otra URL, un doble de prueba, otro protocolo) sin tocarlas. Los tipos del contrato
-  (`ApiModel`) son propios del frontend: no se reutilizan clases del backend.
-- **Las vistas no bloquean la interfaz**: todas las llamadas se hacen en segundo plano (`Background`)
-  y el resultado se muestra en el hilo de JavaFX.
-- **El backend no depende de los frontends**: es ejecutable de forma independiente y solo expone JSON.
-  (Las aplicaciones dependen del backend únicamente en sus pruebas, para probar contra el sistema real.)
-- **Base de datos**: H2 embebida en un fichero local; el esquema (`backend/src/main/resources/db/schema.sql`)
-  se crea al arrancar.
+- **Una sola aplicación, dos perfiles.** Tras iniciar sesión, el menú muestra solo los módulos del
+  perfil: el **empleado** ve *Mi fichaje* y *Mis registros*; el **responsable** ve *Registro de
+  asistencia*, *Consulta de presencia*, *Definición de horarios* y *Personal y centros*.
+- **Módulos frontend diferenciados.** Cada módulo vive en su carpeta (`web/modulos/<módulo>/`), exporta
+  `{ id, roles, title, mount }` y solo recibe el adaptador de la API y el usuario. No comparten estado.
+- **Los permisos los decide el backend**, no el menú: aunque un empleado llame a la API directamente,
+  el backend responde `403 FORBIDDEN` si intenta ver o fichar datos de otra persona o usar una
+  operación de responsable.
+- **El frontend nunca accede a la base de datos**: solo usa `HttpPresenceApi`
+  (`web/shared/api-client.js`), que es sustituible (otra URL, un doble de prueba...). Las vistas no hacen
+  `fetch` ni conocen las rutas.
+- **El backend no depende del frontend**: es ejecutable de forma independiente y solo expone JSON. Como
+  la web se sirve desde otro puerto, responde a CORS (con `Authorization`, sin cookies).
 
 ## 5. Arquitectura del backend (hexagonal)
 
@@ -210,21 +214,24 @@ flowchart LR
         SEED["infrastructure.seed<br/>DemoData"]
     end
     subgraph APP["Aplicación"]
-        PIN["port.in<br/>RegisterClockEventUseCase<br/>AttendanceQueryUseCase<br/>ScheduleAdministrationUseCase<br/>PersonAdministrationUseCase<br/>JustifyIncidentUseCase"]
+        PIN["port.in<br/>AuthenticationUseCase, AccountAdministrationUseCase<br/>RegisterClockEventUseCase<br/>AttendanceQueryUseCase<br/>ScheduleAdministrationUseCase<br/>PersonAdministrationUseCase<br/>WorkplaceAdministrationUseCase<br/>JustifyIncidentUseCase"]
+        SEC["security<br/>Principal, AccessControl"]
         SVC["service<br/>*Service (casos de uso)"]
-        POUT["port.out<br/>PersonRepository, ScheduleRepository,<br/>AssignmentRepository, HolidayRepository,<br/>ClockEventRepository, JustificationRepository,<br/>AuditTrail, Transactions"]
+        POUT["port.out<br/>PersonRepository, ScheduleRepository,<br/>AssignmentRepository, HolidayRepository,<br/>ClockEventRepository, JustificationRepository,<br/>WorkplaceRepository, UserAccountRepository,<br/>SessionRepository, PasswordHasher,<br/>AuditTrail, Transactions"]
         PIN --> SVC --> POUT
     end
     subgraph DOM["Dominio (sin dependencias externas)"]
-        D["schedule · assignment · clocking<br/>attendance (AttendanceEvaluator) · calendar · person · error"]
+        D["schedule · assignment · clocking<br/>attendance (AttendanceEvaluator) · calendar<br/>person · workplace · account · error"]
     end
     subgraph OUT["Adaptadores de salida"]
         JDBC["infrastructure.persistence<br/>Jdbc*Repository, JdbcAuditTrail, Database"]
+        SECA["infrastructure.security<br/>Pbkdf2PasswordHasher,<br/>InMemorySessionRepository"]
     end
     HTTP --> PIN
     SEED --> PIN
     SVC --> D
     JDBC -. implementa .-> POUT
+    SECA -. implementa .-> POUT
 ```
 
 Reglas de dependencia (comprobadas por `ArchitectureTest`):
@@ -242,11 +249,11 @@ sustituibles.
 
 ```
 control-presencia/
-├── pom.xml                         POM padre (módulos backend y frontend, JDK 21)
+├── pom.xml                         POM padre (módulos backend, frontend y lanzador; JDK 21)
 ├── iniciar.bat / iniciar.sh        Arranque todo en uno (doble clic)
 ├── mvnw, mvnw.cmd, .mvn/           Maven Wrapper (no hace falta instalar Maven)
 ├── .run/                           Configuraciones de ejecución de IntelliJ
-├── backend/                        presencia-backend
+├── backend/                        presencia-backend (API HTTP/JSON, arquitectura hexagonal)
 │   └── src/main/java/software/ulpgc/presencia/
 │       ├── BackendApplication.java Punto de entrada
 │       ├── Backend.java            Raíz de composición
@@ -254,22 +261,27 @@ control-presencia/
 │       ├── application/
 │       │   ├── port/in/            Casos de uso (interfaces y comandos)
 │       │   ├── port/out/           Puertos de salida
+│       │   ├── security/           Principal (usuario autenticado) y AccessControl (permisos)
 │       │   └── service/            Implementación de los casos de uso
 │       └── infrastructure/
-│           ├── http/               Adaptador HTTP (servidor, rutas, DTO, errores)
+│           ├── http/               Adaptador HTTP (servidor, rutas con permisos, DTO, errores)
 │           ├── persistence/        Adaptador JDBC/H2
+│           ├── security/           PBKDF2 y sesiones
 │           ├── json/               Representación JSON de horarios
 │           ├── config/             AppConfig
 │           └── seed/               Datos de ejemplo
-├── frontend/                       presencia-frontend (agregador)
-│   ├── comun/                      presencia-frontend-comun
-│   │   ├── .../frontend/api/       PresenceApi, HttpPresenceApi, ApiModel, ApiException, ApiConfig
-│   │   └── .../frontend/ui/        Ui, Badge, MessageBar, Texts, Background, presencia.css
-│   ├── fichaje/                    presencia-fichaje   (FichajeLauncher, FichajeApp, FichajeView)
-│   ├── consulta/                   presencia-consulta  (ConsultaLauncher, ConsultaApp, ConsultaView)
-│   └── horarios/                   presencia-horarios  (HorariosLauncher, HorariosApp, HorariosView, ScheduleForm)
-├── lanzador/                       presencia-lanzador (Lanzador, LanzadorApp): backend + ventana de arranque
-└── docs/capturas/                  Capturas de las tres aplicaciones
+├── frontend/                       presencia-frontend (aplicación web)
+│   ├── src/main/java/.../FrontendServer.java   Servidor estático + /config.js
+│   └── src/main/resources/web/
+│       ├── index.html, login.js    Inicio de sesión / primer arranque
+│       ├── app/                    Contenedor: menú por perfil y enrutado de módulos
+│       ├── modulos/fichaje/        Registro de asistencia (empleado y responsable)
+│       ├── modulos/consulta/       Consulta de presencia, informes, incidencias, auditoría
+│       ├── modulos/horarios/       Definición de horarios, asignaciones y festivos
+│       ├── modulos/personal/       Personas, accesos y centros de trabajo
+│       └── shared/                 api-client.js, session.js, ui.js, styles.css
+├── lanzador/                       presencia-lanzador: backend + web en un proceso y abre el navegador
+└── docs/                           capturas/ y e2e/recorrido.cjs (recorrido con navegador)
 ```
 
 | Clase | Responsabilidad |
@@ -284,9 +296,13 @@ control-presencia/
 | `IncidentJustificationService` | Justificación de incidencias (idea propia) |
 | `HttpApiServer`, `Router`, `ApiRoutes` | Adaptador HTTP y traducción de errores de dominio a códigos HTTP |
 | `Database`, `Jdbc*Repository`, `JdbcAuditTrail` | Persistencia JDBC con transacciones |
-| `PresenceApi` / `HttpPresenceApi` | Puerto de comunicación de los frontends y su adaptador HTTP + JSON |
-| `FichajeView`, `ConsultaView`, `HorariosView`, `ScheduleForm` | Vistas JavaFX de cada aplicación (reciben `PresenceApi` y `Clock` por constructor) |
-| `Ui`, `Badge`, `MessageBar`, `Background` | Componentes visuales comunes, mensajes de error del contrato y llamadas en segundo plano |
+| `AuthenticationService`, `AccountAdministrationService` | Inicio de sesión (tokens con caducidad), primer responsable, cuentas y cambio de clave |
+| `AccessControl`, `Principal` | Reglas de permisos: el empleado solo opera sobre sí mismo; el responsable, sobre todo |
+| `Pbkdf2PasswordHasher` | Protección de claves (PBKDF2-HMAC-SHA256, sal aleatoria, comparación en tiempo constante) |
+| `WorkplaceAdministrationService` | Centros de trabajo |
+| `HttpPresenceApi` (JS) | Adaptador de comunicación sustituible de la aplicación web |
+| `app.js` y `modulos/*` (JS) | Contenedor por perfil y módulos de fichaje, consulta, horarios y personal |
+| `Lanzador` | Arranque todo en uno (backend + web) |
 
 ## 7. Modelo de datos
 
@@ -302,8 +318,10 @@ classDiagram
     class OnCallSchedule { start; duration; mode; dates }
     class TimeSlot { start; end }
     class Shift { label; start; duration }
-    class ScheduleAssignment { scheduleId; targetType PERSON|TEAM; targetId; validFrom; validTo }
-    class ClockEvent { personId; type ENTRY|EXIT; occurredAt; recordedAt; source; note }
+    class ScheduleAssignment { scheduleId; targetType PERSON|TEAM; targetId; validFrom; validTo; workplaceId }
+    class ClockEvent { personId; type ENTRY|EXIT; occurredAt; recordedAt; source; note; workplaceId }
+    class Workplace { id; name; address }
+    class UserAccount { username; role ADMIN|EMPLOYEE; personId; passwordHash }
     class Incident { key; type; date; minutes; justification }
     class Holiday { date; description }
     Schedule <|-- ContinuousSchedule
@@ -316,6 +334,8 @@ classDiagram
     ScheduleAssignment --> Schedule
     ScheduleAssignment --> Person : persona o equipo
     ClockEvent --> Person
+    ScheduleAssignment --> Workplace : centro
+    UserAccount --> Person : empleado
     Incident --> Person
 ```
 
@@ -329,9 +349,11 @@ actual; así nunca quedan desfasadas si se corrige un fichaje. Su clave estable
 |---|---|
 | `person` | id, display_name, team |
 | `schedule` | id, name, kind, tolerance_minutes y `definition` (JSON con la estructura propia de cada tipo) |
-| `schedule_assignment` | schedule_id, target_type (PERSON/TEAM), target_id, valid_from, valid_to |
+| `schedule_assignment` | schedule_id, target_type (PERSON/TEAM), target_id, valid_from, valid_to, workplace_id |
 | `holiday` | holiday_date, description |
-| `clock_event` | person_id, event_type, occurred_at, recorded_at, source, note — **solo se inserta** |
+| `clock_event` | person_id, event_type, occurred_at, recorded_at, source, note, workplace_id — **solo se inserta** |
+| `workplace` | id, name, address (centros de trabajo) |
+| `user_account` | username, role (ADMIN/EMPLOYEE), person_id, password_hash (PBKDF2), created_at |
 | `incident_justification` | incident_key, person_id, reason, justified_by, justified_at |
 | `audit_log` | logged_at, actor, action, entity_type, entity_id, detail — cada modificación |
 
@@ -429,48 +451,68 @@ Encapsuladas en `ClockingPolicy` (al fichar) y `AttendanceEvaluator` (al consult
 ## 10. Contrato de comunicación
 
 HTTP + JSON, prefijo `/api`, UTF-8. Las fechas son `AAAA-MM-DD`, las horas `HH:mm` y los instantes
-ISO-8601 con desplazamiento (`2026-11-17T08:05:00Z`). La cabecera opcional **`X-Actor`** identifica
-quién hace la operación para la auditoría (las aplicaciones envían `app-fichaje`, `app-consulta` y
-`app-horarios`). Los `POST` exigen `Content-Type: application/json` y se rechazan campos desconocidos.
+ISO-8601 con desplazamiento (`2026-11-17T08:05:00Z`). Los `POST` exigen `Content-Type: application/json`
+y se rechazan campos desconocidos.
 
-| Método | Ruta | Cuerpo / parámetros | Respuesta |
-|---|---|---|---|
-| GET | `/api/health` | — | Estado, zona, hora del servidor y valores de los enumerados |
-| GET | `/api/people` | — | `[Person]` |
-| POST | `/api/people` | `{"id":"EMP-009","displayName":"…","team":"…"}` | 201 `Person` |
-| GET | `/api/schedules` | — | `[Schedule]` (§8, con `id` y `summary`) |
-| GET | `/api/schedules/{id}` | — | `Schedule` |
-| POST | `/api/schedules` | Uno de los cuerpos del §8 | 201 `Schedule` |
-| GET | `/api/assignments` | `?personId=` opcional | `[Assignment]` |
-| POST | `/api/assignments` | `{"scheduleId","personId" o "team","validFrom","validTo"?}` | 201 `Assignment` |
-| GET | `/api/holidays` | — | `[{"date","description"}]` |
-| POST | `/api/holidays` | `{"date":"2026-12-25","description":"Navidad"}` | 201 |
-| POST | `/api/clock-events` | `{"personId","type":"ENTRY"\|"EXIT","source":"KIOSK"\|"WEB"\|"ADMIN"\|"IMPORT","timestamp"?,"note"?}` | 201 `{"event": ClockEvent, "presence": Presence}` |
-| GET | `/api/clock-events` | `?personId=&from=&to=` (por defecto hoy) | `[ClockEvent]` |
-| GET | `/api/presence` | — | `[Presence]` de todas las personas |
-| GET | `/api/presence/{personId}` | — | `Presence` |
-| GET | `/api/reports/daily` | `?personId=&from=&to=` (máx. 366 días) | `Report` con totales y días |
-| GET | `/api/incidents` | `?personId=&from=&to=&type=` (por defecto últimos 7 días) | `[Incident]` |
-| POST | `/api/incidents/justifications` | `{"incidentKey","reason"}` | 201 `Justification` |
-| GET | `/api/audit` | `?limit=` (1–500, por defecto 50) | `[AuditEntry]` más recientes primero |
+**Autenticación.** `POST /api/auth/login` devuelve un token; el resto de peticiones lo envían en
+`Authorization: Bearer <token>`. La sesión caduca a las 12 h (configurable) o con `logout`. La auditoría
+guarda el usuario autenticado que hizo cada cambio.
+
+**Permisos** (columna *Acceso*): **Público**; **Sesión** = cualquier usuario autenticado; **Propio** = un
+empleado solo puede indicar su propia persona (si no la indica, se usa la suya) y el responsable
+cualquiera; **Responsable** = solo perfil ADMIN.
+
+| Método | Ruta | Acceso | Cuerpo / parámetros | Respuesta |
+|---|---|---|---|---|
+| GET | `/api/health` | Público | — | Estado, zona, hora y enumerados |
+| GET | `/api/auth/status` | Público | — | `{"setupRequired": bool}` |
+| POST | `/api/auth/setup` | Público (solo si no hay responsable) | `{"username","password"}` | 201 `Login` |
+| POST | `/api/auth/login` | Público | `{"username","password"}` | `Login` = `{"token","expiresAt","user":{"username","role","personId","displayName"}}` |
+| POST | `/api/auth/logout` | Sesión | — | 204 |
+| GET | `/api/auth/me` | Sesión | — | `user` |
+| GET | `/api/users` | Responsable | — | `[{"username","role","personId","createdAt"}]` (nunca la clave) |
+| POST | `/api/users` | Responsable | `{"username","password","role":"ADMIN"\|"EMPLOYEE","personId"}` | 201 |
+| POST | `/api/users/{username}/password` | Responsable | `{"password"}` | 204 (cierra sus sesiones) |
+| GET / POST | `/api/people` | Responsable | `{"id":"EMP-009","displayName","team"?}` | `[Person]` / 201 |
+| GET | `/api/workplaces` | Sesión | — | `[{"id","name","address"}]` |
+| POST | `/api/workplaces` | Responsable | `{"id","name","address"?}` | 201 |
+| GET | `/api/schedules`, `/api/schedules/{id}` | Sesión | — | `[Schedule]` / `Schedule` (§8) |
+| POST | `/api/schedules` | Responsable | Uno de los cuerpos del §8 | 201 `Schedule` |
+| GET | `/api/assignments` | Propio | `?personId=` | `[Assignment]` |
+| POST | `/api/assignments` | Responsable | `{"scheduleId","personId" o "team","validFrom","validTo"?,"workplaceId"?}` | 201 |
+| GET | `/api/holidays` | Sesión | — | `[{"date","description"}]` |
+| POST | `/api/holidays` | Responsable | `{"date","description"}` | 201 |
+| POST | `/api/clock-events` | Propio | `{"personId"?,"type":"ENTRY"\|"EXIT","source"?,"timestamp"?,"note"?}` | 201 `{"event","presence"}` |
+| GET | `/api/clock-events` | Propio | `?personId=&from=&to=` | `[ClockEvent]` (con `workplaceId`) |
+| GET | `/api/presence` | Responsable | — | `[Presence]` (con `workplace`) |
+| GET | `/api/presence/{personId}` | Propio | — | `Presence` |
+| GET | `/api/reports/daily` | Propio | `?personId=&from=&to=` (máx. 366 días) | `Report` con totales y días |
+| GET | `/api/incidents` | Propio | `?personId=&from=&to=&type=` | `[Incident]` |
+| POST | `/api/incidents/justifications` | Responsable | `{"incidentKey","reason"}` | 201 |
+| GET | `/api/audit` | Responsable | `?limit=` (1–500) | `[AuditEntry]` |
+
+Reglas del fichaje de un **empleado**: siempre sobre sí mismo, origen `WEB` (por defecto) o `KIOSK` y con
+la hora del servidor; indicar `timestamp` u origen `ADMIN` devuelve `403`. El **responsable** puede fichar
+para cualquier persona y con hora indicada (corrección de olvidos, origen `ADMIN`).
 
 Ejemplo de fichaje y su respuesta:
 
 ```http
 POST /api/clock-events
 Content-Type: application/json
-X-Actor: app-fichaje
+Authorization: Bearer 8Hc2…
 
-{"personId":"EMP-001","type":"ENTRY","source":"KIOSK"}
+{"type":"ENTRY"}
 ```
 
 ```json
 { "event": { "id": "59ce…", "personId": "EMP-001", "type": "ENTRY", "occurredAt": "2026-11-17T08:25:00Z",
-             "recordedAt": "2026-11-17T08:25:00Z", "source": "KIOSK", "note": null },
+             "recordedAt": "2026-11-17T08:25:00Z", "source": "WEB", "note": null, "workplaceId": "OFICINA" },
   "presence": { "personId": "EMP-001", "displayName": "Persona Oficina A", "status": "PRESENT", "inside": true,
                 "since": "2026-11-17T08:25:00Z", "currentPeriod": "08:00-15:00",
                 "currentPeriodStart": "2026-11-17T08:00:00Z", "currentPeriodEnd": "2026-11-17T15:00:00Z",
-                "todayStatus": "LATE" } }
+                "todayStatus": "LATE",
+                "workplace": { "id": "OFICINA", "name": "Oficina central", "address": "Edificio A, planta 2" } } }
 ```
 
 Un día del informe (`GET /api/reports/daily`) contiene `date`, `scheduleName`, `holiday`, `status`,
@@ -493,60 +535,75 @@ Todos los errores tienen el mismo cuerpo:
 
 | HTTP | `error` | Cuándo |
 |---|---|---|
-| 400 | `INVALID_DATA` | Datos incompletos o mal formados, JSON roto, campo desconocido, rango de fechas inválido, tramos incoherentes… |
-| 404 | `PERSON_NOT_FOUND`, `SCHEDULE_NOT_FOUND`, `INCIDENT_NOT_FOUND`, `NOT_FOUND` | Persona, horario, incidencia o ruta inexistente |
+| 400 | `INVALID_DATA` | Datos incompletos o mal formados, JSON roto, campo desconocido, rango de fechas inválido, tramos incoherentes, clave de menos de 8 caracteres… |
+| 401 | `UNAUTHENTICATED` | Sin token, token inventado, sesión caducada o cerrada |
+| 401 | `INVALID_CREDENTIALS` | Usuario o clave incorrectos (mismo mensaje exista o no el usuario) |
+| 403 | `FORBIDDEN` | Un empleado intenta ver o fichar datos de otra persona, indicar la hora o usar una operación de responsable |
+| 404 | `PERSON_NOT_FOUND`, `SCHEDULE_NOT_FOUND`, `INCIDENT_NOT_FOUND`, `ACCOUNT_NOT_FOUND`, `WORKPLACE_NOT_FOUND`, `NOT_FOUND` | Recurso o ruta inexistente |
 | 405 | `METHOD_NOT_ALLOWED` | Método no admitido en la ruta |
 | 409 | `DUPLICATE_CLOCK_EVENT` | Entrada con otra entrada abierta |
 | 409 | `INCONSISTENT_CLOCK_EVENT` | Salida sin entrada previa, o fichaje anterior al último |
-| 409 | `PERSON_ALREADY_EXISTS`, `HOLIDAY_ALREADY_EXISTS`, `ASSIGNMENT_OVERLAP`, `INCIDENT_ALREADY_JUSTIFIED` | Conflictos de alta |
+| 409 | `PERSON_ALREADY_EXISTS`, `HOLIDAY_ALREADY_EXISTS`, `ASSIGNMENT_OVERLAP`, `INCIDENT_ALREADY_JUSTIFIED`, `ACCOUNT_ALREADY_EXISTS`, `WORKPLACE_ALREADY_EXISTS` | Conflictos de alta (una persona solo tiene una cuenta) |
+| 409 | `SETUP_ALREADY_DONE` | Se intenta crear el primer responsable cuando ya existe |
 | 413 | `PAYLOAD_TOO_LARGE` | Cuerpo de más de 64 KB |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | `POST` sin `application/json` |
 | 422 | `SCHEDULE_NOT_ASSIGNED` | La persona no tiene ningún horario asignado |
 | 422 | `DATE_OUT_OF_PERIOD` | La fecha está fuera de los periodos de sus asignaciones |
 | 500 | `INTERNAL_ERROR` | Error no controlado (sin detalles internos; se registra en el log) |
 
-## 11. Idea propia: incidencias justificadas y calendario de festivos
+## 11. Ideas propias
 
-**Incidencias justificadas.** Desde *Consulta → Incidencias* se puede justificar una ausencia, un
-retraso o una salida (cita médica, formación, atasco…). La justificación guarda motivo, autor y fecha,
-queda en la auditoría, no se puede repetir, y el día pasa a estado *Justificado* sin perder la
-incidencia original. Encaja con el dominio porque un control de presencia real no se limita a detectar
-desviaciones: necesita registrar por qué ocurrieron, y hacerlo sin modificar los fichajes (que siguen
-siendo de solo añadir) mantiene la trazabilidad.
+**Perfiles de responsable y empleado en una misma aplicación.** Es la idea de partida del proyecto: un
+mismo sitio en el que, según quién inicie sesión, se gestiona el personal o se ficha. Encaja con el
+dominio porque el fichaje lo hace cada persona desde su móvil o un terminal, mientras que horarios,
+correcciones e incidencias son de los responsables. Los permisos se aplican en el backend (el menú solo
+es una ayuda) y las claves se guardan con PBKDF2; no hay credenciales en el repositorio.
+
+**Centros de trabajo.** Cada asignación de horario indica en qué edificio o sede se cumple, y cada
+fichaje guarda el centro de la asignación vigente (la salida, el de su entrada). La presencia actual
+muestra dónde está cada persona.
+
+**Incidencias justificadas.** Desde *Consulta → Incidencias* el responsable justifica una ausencia, un
+retraso o una salida (cita médica, formación...). La justificación guarda motivo, autor y fecha, queda
+auditada, no se puede repetir, y el día pasa a *Justificado* sin perder la incidencia original. Los
+fichajes no se modifican (son de solo añadir), lo que mantiene la trazabilidad.
 
 **Calendario de festivos con reglas por tipo de horario.** Un festivo anula los periodos de los horarios
-corridos y partidos (la oficina y la tienda cierran), pero **no** los turnos ni las guardias, porque un
-hospital mantiene la cobertura. Es una regla explícita de cada tipo (`Schedule.exemptOnHolidays()`).
+corridos y partidos, pero **no** los turnos ni las guardias (cobertura continua del hospital): es una
+regla explícita de cada tipo (`Schedule.exemptOnHolidays()`).
 
-Además, se registra la **auditoría** de todas las modificaciones (consultable en *Consulta → Auditoría*)
-y se permite la **corrección de olvidos** con un fichaje de origen `ADMIN` con hora indicada.
+Además se audita toda modificación (*Consulta → Auditoría*) y el responsable puede corregir olvidos con
+un fichaje de origen `ADMIN` y hora indicada.
 
 ## 12. Capturas
 
-Generadas a partir de las aplicaciones JavaFX reales conectadas al backend real (con los datos de
-ejemplo y un reloj fijo en el martes 17/11/2026 a las 11:00) por las pruebas de interfaz:
+Tomadas con un navegador sobre el sistema real (lanzador, base de datos nueva con los datos de ejemplo)
+por el recorrido automático `docs/e2e/recorrido.cjs`.
 
-```bash
-mvn install -DskipTests
-```
+### Inicio de sesión
 
-```bash
-mvn -pl frontend/fichaje,frontend/consulta,frontend/horarios test -Dcapturas.dir=$(pwd)/docs/capturas
-```
+Primer arranque: se crea la cuenta de responsable (después, el formulario normal de inicio de sesión).
 
-### Registro de asistencia
+![Primer arranque](docs/capturas/login-primer-arranque.png)
 
-Entrada registrada: el estado pasa a *Presente* y el día se marca como *Retraso*.
+### Perfil empleado
 
-![Registro de asistencia](docs/capturas/fichaje.png)
+*Mi fichaje*: estado actual con su centro, botones de entrada y salida, fichajes de hoy y su horario
+(asignaciones y próximos 7 días). Solo ve sus datos.
 
-Segundo intento de entrada: rechazado con `DUPLICATE_CLOCK_EVENT`.
+![Mi fichaje](docs/capturas/empleado-fichaje.png)
 
-![Fichaje duplicado rechazado](docs/capturas/fichaje-error.png)
+*Mis registros*: su informe por periodo, incidencias y fichajes.
 
-### Consulta de presencia e incidencias
+![Mis registros](docs/capturas/empleado-registros.png)
 
-Presencia actual de todas las personas (EMP-004 aparece con *Salida pendiente* porque no fichó la salida ayer).
+En el móvil (iPhone 13):
+
+<img src="docs/capturas/empleado-movil.png" alt="Mi fichaje en el móvil" width="320">
+
+### Perfil responsable — Consulta de presencia
+
+Presencia actual de todas las personas con su centro de trabajo.
 
 ![Presencia actual](docs/capturas/consulta-presencia.png)
 
@@ -554,100 +611,118 @@ Informe por persona y periodo: esperado, trabajado, desviación e incidencias de
 
 ![Informe por persona y periodo](docs/capturas/consulta-informe.png)
 
-Incidencias de todas las personas, con una ya justificada desde la propia tabla.
+Incidencias, con una justificada desde la propia tabla.
 
 ![Incidencias](docs/capturas/consulta-incidencias.png)
 
-Auditoría de modificaciones.
+Auditoría: quién hizo cada cambio.
 
 ![Auditoría](docs/capturas/consulta-auditoria.png)
 
-### Definición de horarios
+### Perfil responsable — Definición de horarios
 
-Horarios definidos de los cuatro tipos y formulario de un horario corrido.
+Horarios de los cuatro tipos, formulario, asignaciones (persona o equipo y centro) y festivos.
 
 ![Definición de horarios](docs/capturas/horarios.png)
 
-Formulario de turnos rotatorios (ciclo de días de trabajo y descanso).
+Formulario de turnos rotatorios.
 
 ![Formulario de turnos rotatorios](docs/capturas/horarios-turnos.png)
 
+### Perfil responsable — Personal y registro de asistencia
+
+Personas, accesos a la aplicación (con cambio de clave) y centros de trabajo.
+
+![Personal y centros](docs/capturas/personal.png)
+
+Fichaje en nombre de una persona sin horario: rechazado con `SCHEDULE_NOT_ASSIGNED`.
+
+![Fichaje rechazado](docs/capturas/responsable-fichaje-error.png)
+
 ## 13. Verificación realizada
 
-### Pruebas automatizadas (`mvn test`: 64 pruebas, todas correctas)
+### Pruebas automatizadas (`mvnw test`: 61 pruebas, todas correctas)
 
 | Clase de prueba | Qué verifica |
 |---|---|
 | `ScheduleTypesTest` (7) | Periodos de cada tipo de horario, ciclos antes de su inicio, validaciones (tramos sin pausa, solapes de turnos, tolerancia) |
 | `ClockingPolicyTest` (4) | Entrada duplicada, salida sin entrada, orden cronológico y fichajes futuros |
 | `AttendanceEvaluatorTest` (20) | Puntualidad, retraso, salida anticipada, ausencia, salida pendiente, festivos, trabajo extra, horario partido por tramos, turno de noche que cruza la medianoche, guardias física y localizada, justificaciones, estados de presencia |
-| `UseCasesTest` (9) | Casos de uso con **adaptadores en memoria**: flujo completo, todos los errores de fichaje, prioridad persona/equipo, solapes de asignaciones, festivos, justificación única y auditoría |
-| `HttpApiIntegrationTest` (6) | Backend real (HTTP + H2 en fichero temporal): flujo de fichaje y consulta, **todos los códigos de error del contrato**, ida y vuelta de los 4 tipos de horario, **persistencia tras reiniciar**, carga única de datos iniciales y CORS |
+| `UseCasesTest` (9) | Casos de uso con **adaptadores en memoria**: flujo completo, errores de fichaje, prioridad persona/equipo, solapes, festivos, justificación única y auditoría |
+| `SecurityUseCasesTest` (5) | Primer responsable una sola vez, inicio de sesión, caducidad y cierre de sesión, cuentas (una por persona) y cambio de clave que cierra sesiones, reglas de `AccessControl` |
+| `HttpApiIntegrationTest` (8) | Backend real (HTTP + H2): flujo de fichaje y consulta, **todos los códigos de error**, los 4 tipos de horario, **persistencia tras reiniciar**, datos iniciales, CORS, **401/403** y que un **empleado solo accede a sus datos** (y ficha con su centro) |
 | `ArchitectureTest` (3) | Reglas de dependencia de la arquitectura hexagonal |
-| `HttpPresenceApiContractTest` (5) | **Contrato frontend/backend**: el cliente de las aplicaciones contra el backend real (lectura, altas de los 4 tipos de horario, fichaje, justificación, códigos de error y backend caído) |
-| `FichajeViewTest` (3) | **Interfaz** de fichaje contra el backend real: entrada, duplicado, salida, `SCHEDULE_NOT_ASSIGNED`, `DATE_OUT_OF_PERIOD`, salida sin entrada y corrección manual de un olvido |
-| `ConsultaViewTest` (4) | **Interfaz** de consulta: presencia actual, informe por persona y periodo, filtro y justificación de incidencias, auditoría y fichajes por periodo |
-| `HorariosViewTest` (3) | **Interfaz** de horarios: alta de los cuatro tipos desde el formulario, validación de horas, personas, asignación a equipo, solape y festivos duplicados |
+| `Pbkdf2PasswordHasherTest` (2) | Sal aleatoria, verificación y hashes mal formados |
+| `FrontendServerTest` (3) | Se sirven el inicio de sesión, la aplicación y los cuatro módulos; `/config.js`; redirecciones y rutas no válidas |
 
-Las pruebas de interfaz usan TestFX con Monocle (*headless*), así que no abren ventanas y se pueden
-ejecutar en cualquier equipo o en integración continua.
+### Recorrido automático con navegador (`docs/e2e/recorrido.cjs`)
+
+Con el sistema arrancado sobre una base de datos nueva (`java -Dpresencia.no-browser=true -jar
+lanzador/target/presencia-lanzador-app.jar`) y Node.js + Playwright:
+
+```bash
+node docs/e2e/recorrido.cjs docs/capturas
+```
+
+Comprueba, en un navegador real: creación del responsable y su menú de cuatro módulos; alta del acceso de
+EMP-001 y rechazo de una clave corta; credencial errónea rechazada; menú del empleado (solo *Mi fichaje* y
+*Mis registros*); fichaje de entrada y entrada duplicada rechazada; que el empleado no puede abrir el
+módulo de horarios; presencia con centros, informe, justificación de una incidencia, auditoría; alta de
+turnos rotatorios y rechazo de una guardia sin fechas; fichaje de una persona sin horario rechazado; y
+que no hay errores de JavaScript. También se revisó la vista móvil (sin scroll horizontal).
 
 ### Comprobaciones manuales (sistema completo desde una copia limpia)
-
-Realizadas con `mvn clean package`, el jar del backend y los tres jars de las aplicaciones:
 
 | Comprobación | Resultado |
 |---|---|
 | Compila y pasan las pruebas desde un `git clone` limpio | ✔ |
-| El backend y las tres aplicaciones arrancan con `java -jar` y se comunican | ✔ |
-| Las apps esperan al backend si se arrancan a la vez (configuración *Sistema completo*) | ✔ cargan los datos al estar disponible |
-| Se cargan los tres tipos de horario de ejemplo (más la guardia localizada) | ✔ 5 horarios |
-| Horarios asignados a personas ficticias (individual y por equipo) | ✔ |
-| Entrada y salida correctas | ✔ |
-| Retraso (EMP-001 ficha tarde) y cómo aparece en la consulta | ✔ *Retraso* en presencia, informe e incidencias |
-| Salida anticipada (EMP-003, EMP-005) y salida pendiente (EMP-004) | ✔ |
+| `iniciar.sh` compila la primera vez, arranca backend y web | ✔ |
+| Primer arranque: se pide crear el responsable; después ya no (`SETUP_ALREADY_DONE`) | ✔ |
+| Se cargan los tres tipos de horario de ejemplo (más la guardia localizada) y cuatro centros | ✔ |
+| Horarios asignados a personas ficticias (individual y por equipo) con centro | ✔ |
+| Entrada y salida correctas como empleado | ✔ |
+| Retraso, salida anticipada y salida pendiente en la consulta | ✔ |
 | Consulta por persona y por periodo | ✔ |
-| Persona inexistente | ✔ 404 `PERSON_NOT_FOUND` |
-| Fichaje duplicado | ✔ 409 `DUPLICATE_CLOCK_EVENT` (captura) |
-| Salida sin entrada previa | ✔ 409 `INCONSISTENT_CLOCK_EVENT` |
-| Horario no asignado (EMP-007) | ✔ 422 `SCHEDULE_NOT_ASSIGNED` |
-| Fecha fuera de periodo (EMP-008) | ✔ 422 `DATE_OUT_OF_PERIOD` |
-| Datos incompletos / JSON incorrecto | ✔ 400 `INVALID_DATA` |
-| Guardia sin fechas desde el formulario | ✔ rechazada con mensaje |
-| Corrección de olvido: salida `ADMIN` con hora de ayer para EMP-004 | ✔ aceptada; `recordedAt` conserva la hora real |
-| Reinicio del backend: fichajes, horarios y auditoría persisten | ✔ |
+| Persona inexistente / fichaje duplicado / salida sin entrada | ✔ 404 / 409 / 409 |
+| Horario no asignado (EMP-007) / fecha fuera de periodo (EMP-008) | ✔ 422 / 422 |
+| Empleado intentando ver o fichar a otra persona o usar rutas de responsable | ✔ 403 `FORBIDDEN` |
+| Corrección de olvido con hora indicada como responsable | ✔ aceptada; `recordedAt` conserva la hora real |
+| Reinicio del backend: fichajes, horarios, cuentas y auditoría persisten (hay que volver a iniciar sesión) | ✔ |
 
-Para repetirlas a mano con `curl`:
+Para repetirlas a mano con `curl` (sustituye el token por el que devuelve el inicio de sesión):
 
 ```bash
-curl -s -X POST localhost:8080/api/clock-events -H 'Content-Type: application/json' -d '{"personId":"EMP-007","type":"ENTRY","source":"KIOSK"}'
+curl -s -X POST localhost:8080/api/auth/login -H 'Content-Type: application/json' -d '{"username":"TU_USUARIO","password":"TU_CLAVE"}'
+```
+
+```bash
+curl -s localhost:8080/api/presence/EMP-002 -H 'Authorization: Bearer TOKEN'
 ```
 
 ## 14. Límites conocidos
 
-- **Seguridad y permisos**: no hay autenticación ni roles; cualquiera con acceso a la API puede fichar
-  por otra persona o definir horarios. `X-Actor` es declarativo (no verificado). Por eso el backend
-  escucha por defecto solo en `localhost`. Un despliegue real necesitaría autenticación (p. ej. OIDC),
-  roles empleado/responsable y HTTPS.
-- **Concurrencia**: los fichajes de una misma persona se serializan con un cerrojo en memoria y las
-  escrituras van en transacciones. Es correcto con **una sola instancia** del backend; varias instancias
-  requerirían un bloqueo en base de datos.
+- **Seguridad**: inicio de sesión con usuario y clave (PBKDF2) y tokens aleatorios con caducidad, pero
+  sin HTTPS (en local), sin límite de intentos fallidos ni recuperación de clave por correo (la clave la
+  cambia un responsable). Las sesiones están en memoria: al reiniciar el backend hay que volver a entrar.
+  El backend escucha por defecto solo en `localhost`; para usarlo desde móviles de la red habría que
+  cambiar `presencia.http.host` y `presencia.frontend.host` y, en un despliegue real, poner HTTPS delante.
+  CORS está abierto (`*`), lo que es aceptable porque la autenticación va en una cabecera y no en cookies.
+- **Permisos**: dos perfiles fijos (responsable y empleado); no hay responsables limitados a un centro o
+  a un equipo.
+- **Concurrencia**: los fichajes de una persona se serializan con un cerrojo en memoria y las escrituras
+  van en transacciones. Es correcto con **una sola instancia** del backend.
 - **Reglas de cómputo**: una entrada abierta no suma horas hasta que se ficha la salida; no hay pausas
   dentro de un tramo, horas extra con compensación, convenios, bolsa de horas ni cómputo semanal/anual.
   Los tramos de horarios corridos y partidos no cruzan la medianoche (para eso están turnos y guardias).
-  Las guardias tienen como máximo 24 h.
+  Las guardias tienen como máximo 24 h. Los festivos son comunes a todos los centros.
 - **Incidencias**: se recalculan en cada consulta; si se cambian asignaciones pasadas, las incidencias
   de esos días cambian (los fichajes y las justificaciones no). Una justificación no se puede deshacer.
-- **Modificación de datos**: no hay edición ni borrado de horarios, asignaciones o personas (solo altas),
-  ni corrección/anulación de fichajes más allá de añadir uno nuevo con hora indicada; un fichaje no
-  puede ser anterior al último registrado.
-- **Zona horaria**: se usa una sola zona configurable para todos los centros. Las aplicaciones
-  calculan "hoy" con el reloj del equipo donde se ejecutan.
-- **Aplicaciones JavaFX**: no hay navegación entre las tres aplicaciones (son procesos separados) ni
-  actualización en tiempo real salvo la presencia actual (cada 30 s). Al ejecutarlas desde el
-  classpath JavaFX muestra el aviso `Unsupported JavaFX configuration: classes were loaded from
-  'unnamed module'`, que es inofensivo. El backend mantiene CORS por si se añade un cliente web.
-- **Escalabilidad**: las consultas cargan los datos de la persona y evalúan en memoria (adecuado para
-  cientos de personas, no para miles con rangos largos); el rango de consulta está limitado a 366 días.
+- **Modificación de datos**: no hay edición ni borrado de horarios, asignaciones, personas, centros o
+  cuentas (solo altas y cambio de clave), ni anulación de fichajes más allá de añadir uno nuevo con hora
+  indicada; un fichaje no puede ser anterior al último registrado.
+- **Zona horaria**: una sola zona configurable para todos los centros. La aplicación calcula "hoy" con la
+  fecha del navegador.
+- **Escalabilidad**: las consultas evalúan en memoria (adecuado para cientos de personas, no miles con
+  rangos largos); el rango de consulta está limitado a 366 días.
 - **Datos**: todos los datos de ejemplo son ficticios. La base de datos se genera localmente en `data/`
   y está excluida del repositorio.
