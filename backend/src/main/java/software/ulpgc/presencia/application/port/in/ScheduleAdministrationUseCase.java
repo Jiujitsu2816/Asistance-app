@@ -21,7 +21,7 @@ public interface ScheduleAdministrationUseCase {
     Schedule getSchedule(String id);
 
     record AssignScheduleCommand(String scheduleId, TargetType targetType, String targetId,
-                                 LocalDate validFrom, LocalDate validTo, String actor) { }
+                                 LocalDate validFrom, LocalDate validTo, String workplaceId, String actor) { }
 
     ScheduleAssignment assign(AssignScheduleCommand command);
 

@@ -72,6 +72,6 @@ public final class Fixtures {
     }
 
     private static ClockEvent event(String person, ClockEventType type, Instant at) {
-        return new ClockEvent(UUID.randomUUID().toString(), person, type, at, at, ClockSource.KIOSK, null);
+        return new ClockEvent(UUID.randomUUID().toString(), person, type, at, at, ClockSource.KIOSK, null, null);
     }
 }

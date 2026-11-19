@@ -7,6 +7,7 @@ import software.ulpgc.presencia.application.port.out.ClockEventRepository;
 import software.ulpgc.presencia.application.port.out.PersonRepository;
 import software.ulpgc.presencia.application.port.out.Transactions;
 import software.ulpgc.presencia.domain.Require;
+import software.ulpgc.presencia.domain.assignment.ScheduleAssignment;
 import software.ulpgc.presencia.domain.assignment.ScheduleAssignments;
 import software.ulpgc.presencia.domain.clocking.ClockEvent;
 import software.ulpgc.presencia.domain.clocking.ClockEventType;
@@ -67,10 +68,14 @@ public final class RegisterClockEventService implements RegisterClockEventUseCas
 
         synchronized (locks.computeIfAbsent(person.id(), id -> new Object())) {
             return transactions.inTransaction(() -> {
-                policy.check(events.findLast(person.id()), type, at, now);
-                if (type == ClockEventType.ENTRY) requireAssignment(person, LocalDate.ofInstant(at, zone));
+                var last = events.findLast(person.id());
+                policy.check(last, type, at, now);
+                // La entrada toma el centro de la asignacion vigente; la salida, el de su entrada.
+                String workplace = type == ClockEventType.ENTRY
+                        ? requireAssignment(person, LocalDate.ofInstant(at, zone)).workplaceId()
+                        : last.map(ClockEvent::workplaceId).orElse(null);
                 ClockEvent event = new ClockEvent(UUID.randomUUID().toString(), person.id(), type, at, now, source,
-                        command.note());
+                        command.note(), workplace);
                 events.append(event);
                 audit.record(Actors.normalize(command.actor()), "CLOCK_" + type, "clock_event", event.id(),
                         person.id() + " " + type + " " + at + " origen " + source
@@ -81,12 +86,11 @@ public final class RegisterClockEventService implements RegisterClockEventUseCas
     }
 
     /** Una entrada exige un horario vigente en esa fecha. La salida cierra la entrada abierta. */
-    private void requireAssignment(Person person, LocalDate date) {
+    private ScheduleAssignment requireAssignment(Person person, LocalDate date) {
         ScheduleAssignments resolved = new ScheduleAssignments(person, assignments.findAll());
         if (resolved.isEmpty())
             throw new ScheduleNotAssignedException("La persona '" + person.id() + "' no tiene ningun horario asignado");
-        if (resolved.on(date).isEmpty())
-            throw new DateOutOfPeriodException("El " + date + " esta fuera de los periodos de horario asignados a '"
-                    + person.id() + "'");
+        return resolved.on(date).orElseThrow(() -> new DateOutOfPeriodException("El " + date
+                + " esta fuera de los periodos de horario asignados a '" + person.id() + "'"));
     }
 }

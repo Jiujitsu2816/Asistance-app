@@ -6,12 +6,13 @@ import software.ulpgc.presencia.domain.person.Person;
 import java.time.LocalDate;
 
 /**
- * Asignacion de un horario a una persona o a un equipo durante un periodo.
+ * Asignacion de un horario a una persona o a un equipo durante un periodo, en un centro de trabajo.
  *
- * @param validTo ultimo dia incluido; null indica una asignacion sin fecha de fin.
+ * @param validTo     ultimo dia incluido; null indica una asignacion sin fecha de fin.
+ * @param workplaceId centro de trabajo donde se cumple el horario (opcional).
  */
 public record ScheduleAssignment(String id, String scheduleId, TargetType targetType, String targetId,
-                                 LocalDate validFrom, LocalDate validTo) {
+                                 LocalDate validFrom, LocalDate validTo, String workplaceId) {
     public ScheduleAssignment {
         id = Require.text(id, "id", 64);
         scheduleId = Require.text(scheduleId, "scheduleId", 64);
@@ -20,6 +21,7 @@ public record ScheduleAssignment(String id, String scheduleId, TargetType target
         Require.present(validFrom, "validFrom");
         Require.that(validTo == null || !validTo.isBefore(validFrom),
                 "La fecha de fin (" + validTo + ") no puede ser anterior a la de inicio (" + validFrom + ")");
+        workplaceId = Require.optionalText(workplaceId, "workplaceId", 32);
     }
 
     public boolean covers(LocalDate date) {

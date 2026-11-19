@@ -64,4 +64,10 @@ public final class AppConfig {
     public ZoneId zone() { return ZoneId.of(get("presencia.zone")); }
 
     public boolean seed() { return getBoolean("presencia.seed"); }
+
+    public java.time.Duration sessionDuration() {
+        return java.time.Duration.ofMinutes(getInt("presencia.security.session-minutes"));
+    }
+
+    public int pbkdf2Iterations() { return getInt("presencia.security.pbkdf2-iterations"); }
 }

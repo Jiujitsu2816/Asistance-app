@@ -1,6 +1,14 @@
 package software.ulpgc.presencia.support;
 
 import software.ulpgc.presencia.application.port.out.AssignmentRepository;
+import software.ulpgc.presencia.application.port.out.PasswordHasher;
+import software.ulpgc.presencia.application.port.out.SessionRepository;
+import software.ulpgc.presencia.application.port.out.UserAccountRepository;
+import software.ulpgc.presencia.application.port.out.WorkplaceRepository;
+import software.ulpgc.presencia.application.security.Session;
+import software.ulpgc.presencia.domain.account.Role;
+import software.ulpgc.presencia.domain.account.UserAccount;
+import software.ulpgc.presencia.domain.workplace.Workplace;
 import software.ulpgc.presencia.application.port.out.AuditTrail;
 import software.ulpgc.presencia.application.port.out.ClockEventRepository;
 import software.ulpgc.presencia.application.port.out.HolidayRepository;
@@ -40,6 +48,9 @@ public final class InMemoryAdapters {
     public final List<ClockEvent> events = new ArrayList<>();
     public final Map<String, IncidentJustification> justifications = new LinkedHashMap<>();
     public final List<AuditEntry> audit = new ArrayList<>();
+    public final Map<String, Workplace> workplaces = new LinkedHashMap<>();
+    public final Map<String, UserAccount> accounts = new LinkedHashMap<>();
+    public final Map<String, Session> sessions = new LinkedHashMap<>();
     private final Clock clock;
 
     public InMemoryAdapters(Clock clock) {
@@ -119,6 +130,41 @@ public final class InMemoryAdapters {
             public List<AuditEntry> recent(int limit) {
                 return audit.reversed().stream().limit(limit).toList();
             }
+        };
+    }
+
+    public WorkplaceRepository workplaceRepository() {
+        return new WorkplaceRepository() {
+            public void save(Workplace w) { workplaces.put(w.id(), w); }
+            public Optional<Workplace> findById(String id) { return Optional.ofNullable(workplaces.get(id)); }
+            public List<Workplace> findAll() { return List.copyOf(workplaces.values()); }
+        };
+    }
+
+    public UserAccountRepository accountRepository() {
+        return new UserAccountRepository() {
+            public void save(UserAccount a) { accounts.put(a.username(), a); }
+            public void updatePassword(String u, String h) { accounts.computeIfPresent(u, (k, a) -> a.withPasswordHash(h)); }
+            public Optional<UserAccount> findByUsername(String u) { return Optional.ofNullable(accounts.get(u)); }
+            public List<UserAccount> findAll() { return List.copyOf(accounts.values()); }
+            public boolean existsWithRole(Role role) { return accounts.values().stream().anyMatch(a -> a.role() == role); }
+        };
+    }
+
+    public SessionRepository sessionRepository() {
+        return new SessionRepository() {
+            public void save(Session s) { sessions.put(s.token(), s); }
+            public Optional<Session> find(String t) { return Optional.ofNullable(sessions.get(t)); }
+            public void delete(String t) { sessions.remove(t); }
+            public void deleteByUsername(String u) { sessions.values().removeIf(s -> s.username().equals(u)); }
+        };
+    }
+
+    /** Hash de prueba (no seguro): suficiente para comprobar los casos de uso. */
+    public PasswordHasher passwordHasher() {
+        return new PasswordHasher() {
+            public String hash(char[] p) { return "test$" + new String(p); }
+            public boolean matches(char[] p, String h) { return h.equals("test$" + new String(p)); }
         };
     }
 

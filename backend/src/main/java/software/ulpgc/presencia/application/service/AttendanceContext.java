@@ -60,6 +60,11 @@ final class AttendanceContext {
                 justifications.findByPerson(person.id()));
     }
 
+    java.util.Optional<software.ulpgc.presencia.domain.assignment.ScheduleAssignment> assignmentOn(Person person,
+                                                                                                  LocalDate date) {
+        return new ScheduleAssignments(person, assignments.findAll()).on(date);
+    }
+
     private ScheduleLookup lookup(Person person) {
         ScheduleAssignments resolved = new ScheduleAssignments(person, assignments.findAll());
         Map<String, Schedule> byId = schedules.findAll().stream()

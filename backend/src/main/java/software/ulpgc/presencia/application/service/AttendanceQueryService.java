@@ -8,6 +8,9 @@ import software.ulpgc.presencia.application.port.out.HolidayRepository;
 import software.ulpgc.presencia.application.port.out.JustificationRepository;
 import software.ulpgc.presencia.application.port.out.PersonRepository;
 import software.ulpgc.presencia.application.port.out.ScheduleRepository;
+import software.ulpgc.presencia.application.port.out.WorkplaceRepository;
+import software.ulpgc.presencia.domain.assignment.ScheduleAssignment;
+import software.ulpgc.presencia.domain.workplace.Workplace;
 import software.ulpgc.presencia.domain.Require;
 import software.ulpgc.presencia.domain.attendance.AttendanceEvaluator;
 import software.ulpgc.presencia.domain.attendance.DailyAttendance;
@@ -27,6 +30,7 @@ import java.util.List;
 public final class AttendanceQueryService implements AttendanceQueryUseCase {
     private final AttendanceContext context;
     private final ClockEventRepository events;
+    private final WorkplaceRepository workplaces;
     private final AuditTrail audit;
     private final AttendanceEvaluator evaluator;
     private final Clock clock;
@@ -35,9 +39,10 @@ public final class AttendanceQueryService implements AttendanceQueryUseCase {
     public AttendanceQueryService(PersonRepository people, ScheduleRepository schedules,
                                   AssignmentRepository assignments, HolidayRepository holidays,
                                   ClockEventRepository events, JustificationRepository justifications,
-                                  AuditTrail audit, Clock clock, ZoneId zone) {
+                                  WorkplaceRepository workplaces, AuditTrail audit, Clock clock, ZoneId zone) {
         this.context = new AttendanceContext(people, schedules, assignments, holidays, events, justifications, zone);
         this.events = events;
+        this.workplaces = workplaces;
         this.audit = audit;
         this.evaluator = new AttendanceEvaluator(zone);
         this.clock = clock;
@@ -45,21 +50,27 @@ public final class AttendanceQueryService implements AttendanceQueryUseCase {
     }
 
     @Override
-    public List<PresenceState> currentPresence() {
-        Instant now = clock.instant();
-        LocalDate today = LocalDate.ofInstant(now, zone);
+    public List<PersonPresence> currentPresence() {
         return context.allPeople().stream()
                 .sorted(java.util.Comparator.comparing(Person::id))
-                .map(p -> evaluator.presence(context.input(p, today.minusDays(1), today.plusDays(1)), now))
+                .map(this::presence)
                 .toList();
     }
 
     @Override
-    public PresenceState presenceOf(String personId) {
-        Person person = context.person(personId);
+    public PersonPresence presenceOf(String personId) {
+        return presence(context.person(personId));
+    }
+
+    private PersonPresence presence(Person person) {
         Instant now = clock.instant();
         LocalDate today = LocalDate.ofInstant(now, zone);
-        return evaluator.presence(context.input(person, today.minusDays(1), today.plusDays(1)), now);
+        PresenceState state = evaluator.presence(context.input(person, today.minusDays(1), today.plusDays(1)), now);
+        Workplace workplace = context.assignmentOn(person, today)
+                .map(ScheduleAssignment::workplaceId)
+                .flatMap(workplaces::findById)
+                .orElse(null);
+        return new PersonPresence(state, workplace);
     }
 
     @Override

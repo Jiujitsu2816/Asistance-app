@@ -69,7 +69,7 @@ public final class HttpApiServer implements AutoCloseable {
             String path = exchange.getRequestURI().getRawPath();
             if ("OPTIONS".equals(method)) {
                 exchange.getResponseHeaders().add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-                exchange.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type, X-Actor");
+                exchange.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type, Authorization");
                 exchange.getResponseHeaders().add("Access-Control-Max-Age", "600");
                 exchange.sendResponseHeaders(204, -1);
                 return;
@@ -105,7 +105,7 @@ public final class HttpApiServer implements AutoCloseable {
         byte[] body = readBody(exchange.getRequestBody());
         if (body == null) return error(413, "PAYLOAD_TOO_LARGE", "El cuerpo supera " + MAX_BODY_BYTES + " bytes");
         ApiRequest request = new ApiRequest(match.get().pathParams(), exchange.getRequestURI().getRawQuery(), body,
-                exchange.getRequestHeaders().getFirst("X-Actor"), json);
+                exchange.getRequestHeaders().getFirst("Authorization"), json);
         return match.get().handler().handle(request);
     }
 
@@ -128,9 +128,12 @@ public final class HttpApiServer implements AutoCloseable {
     static int statusOf(ErrorCode code) {
         return switch (code) {
             case INVALID_DATA -> 400;
-            case PERSON_NOT_FOUND, SCHEDULE_NOT_FOUND, INCIDENT_NOT_FOUND -> 404;
+            case UNAUTHENTICATED, INVALID_CREDENTIALS -> 401;
+            case FORBIDDEN -> 403;
+            case PERSON_NOT_FOUND, SCHEDULE_NOT_FOUND, INCIDENT_NOT_FOUND, ACCOUNT_NOT_FOUND, WORKPLACE_NOT_FOUND -> 404;
             case PERSON_ALREADY_EXISTS, HOLIDAY_ALREADY_EXISTS, ASSIGNMENT_OVERLAP, DUPLICATE_CLOCK_EVENT,
-                 INCONSISTENT_CLOCK_EVENT, INCIDENT_ALREADY_JUSTIFIED -> 409;
+                 INCONSISTENT_CLOCK_EVENT, INCIDENT_ALREADY_JUSTIFIED, SETUP_ALREADY_DONE, ACCOUNT_ALREADY_EXISTS,
+                 WORKPLACE_ALREADY_EXISTS -> 409;
             case SCHEDULE_NOT_ASSIGNED, DATE_OUT_OF_PERIOD -> 422;
         };
     }

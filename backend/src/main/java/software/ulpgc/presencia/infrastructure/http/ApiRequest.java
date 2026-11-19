@@ -16,14 +16,14 @@ public final class ApiRequest {
     private final Map<String, String> pathParams;
     private final Map<String, String> query;
     private final byte[] body;
-    private final String actor;
+    private final String authorization;
     private final ObjectMapper json;
 
-    ApiRequest(Map<String, String> pathParams, String rawQuery, byte[] body, String actor, ObjectMapper json) {
+    ApiRequest(Map<String, String> pathParams, String rawQuery, byte[] body, String authorization, ObjectMapper json) {
         this.pathParams = pathParams;
         this.query = parseQuery(rawQuery);
         this.body = body;
-        this.actor = actor;
+        this.authorization = authorization;
         this.json = json;
     }
 
@@ -78,9 +78,11 @@ public final class ApiRequest {
         return value;
     }
 
-    /** Valor de la cabecera X-Actor: quien realiza la operacion (para la auditoria). */
-    public String actor() {
-        return actor;
+    /** Token de la cabecera "Authorization: Bearer &lt;token&gt;", o null si no se envia. */
+    public String bearerToken() {
+        if (authorization == null) return null;
+        String value = authorization.strip();
+        return value.regionMatches(true, 0, "Bearer ", 0, 7) ? value.substring(7).strip() : null;
     }
 
     private static Map<String, String> parseQuery(String raw) {

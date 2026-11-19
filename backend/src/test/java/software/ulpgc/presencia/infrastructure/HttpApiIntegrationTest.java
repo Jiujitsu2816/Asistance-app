@@ -34,13 +34,25 @@ class HttpApiIntegrationTest {
     private final ObjectMapper json = new ObjectMapper();
     private final MutableClock clock = new MutableClock(at(MONDAY, 7, 30), ZONE);
     private Backend backend;
+    /** Clave de una cuenta creada solo dentro de la prueba (base de datos temporal). */
+    private static final String ADMIN_PASSWORD = "clave-de-prueba-1";
+    private String token;
 
     private Backend start(boolean seed) throws Exception {
         Properties props = new Properties();
         props.setProperty("presencia.http.port", "0");
         props.setProperty("presencia.db.url", "jdbc:h2:file:" + dir.resolve("db").toAbsolutePath() + ";DB_CLOSE_DELAY=-1");
         props.setProperty("presencia.seed", Boolean.toString(seed));
-        return new Backend(new AppConfig(Map.of(), props), clock).start();
+        props.setProperty("presencia.security.pbkdf2-iterations", "1000");
+        Backend started = new Backend(new AppConfig(Map.of(), props), clock).start();
+        backend = started;
+        token = null;
+        // La primera vez se crea el responsable; tras un reinicio se vuelve a iniciar sesion.
+        Reply status = get("/api/auth/status");
+        Reply login = post(status.body().get("setupRequired").asBoolean() ? "/api/auth/setup" : "/api/auth/login",
+                "{\"username\":\"admin\",\"password\":\"" + ADMIN_PASSWORD + "\"}");
+        token = login.body().get("token").asText();
+        return started;
     }
 
     @BeforeEach
@@ -56,12 +68,16 @@ class HttpApiIntegrationTest {
     private record Reply(int status, JsonNode body) { }
 
     private Reply get(String path) throws Exception {
-        return send(HttpRequest.newBuilder(uri(path)).GET().build());
+        return send(authorized(HttpRequest.newBuilder(uri(path))).GET().build());
+    }
+
+    private HttpRequest.Builder authorized(HttpRequest.Builder builder) {
+        return token == null ? builder : builder.header("Authorization", "Bearer " + token);
     }
 
     private Reply post(String path, String body) throws Exception {
-        return send(HttpRequest.newBuilder(uri(path)).header("Content-Type", "application/json")
-                .header("X-Actor", "prueba").POST(HttpRequest.BodyPublishers.ofString(body)).build());
+        return send(authorized(HttpRequest.newBuilder(uri(path))).header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body)).build());
     }
 
     private Reply send(HttpRequest request) throws Exception {
@@ -115,7 +131,7 @@ class HttpApiIntegrationTest {
         assertEquals(201, post("/api/incidents/justifications",
                 "{\"incidentKey\":\"" + key + "\",\"reason\":\"Atasco justificado\"}").status());
         assertTrue(get("/api/incidents?from=2026-11-16&to=2026-11-16").body().get(0).get("justified").asBoolean());
-        assertEquals("prueba", get("/api/audit?limit=1").body().get(0).get("actor").asText());
+        assertEquals("admin", get("/api/audit?limit=1").body().get(0).get("actor").asText());
     }
 
     @Test
@@ -207,7 +223,7 @@ class HttpApiIntegrationTest {
 
         assertEquals(1, get("/api/clock-events?personId=EMP-1&from=2026-11-16").body().size());
         assertEquals("PRESENT", get("/api/presence/EMP-1").body().get("status").asText());
-        assertEquals(4, get("/api/audit").body().size());
+        assertEquals(5, get("/api/audit").body().size(), "alta de la cuenta, persona, horario, asignacion y fichaje");
         assertError(post("/api/clock-events", "{\"personId\":\"EMP-1\",\"type\":\"ENTRY\",\"source\":\"KIOSK\"}"),
                 409, "DUPLICATE_CLOCK_EVENT");
     }
@@ -226,12 +242,91 @@ class HttpApiIntegrationTest {
     }
 
     @Test
+    void authenticationIsRequiredAndSetupHappensOnce() throws Exception {
+        String adminToken = token;
+        token = null;
+        assertError(get("/api/people"), 401, "UNAUTHENTICATED");
+        assertEquals(false, get("/api/auth/status").body().get("setupRequired").asBoolean());
+        assertError(post("/api/auth/setup", "{\"username\":\"otro\",\"password\":\"otra-clave-1\"}"),
+                409, "SETUP_ALREADY_DONE");
+        assertError(post("/api/auth/login", "{\"username\":\"admin\",\"password\":\"mala-clave\"}"),
+                401, "INVALID_CREDENTIALS");
+        assertError(post("/api/auth/login", "{\"username\":\"nadie\",\"password\":\"mala-clave\"}"),
+                401, "INVALID_CREDENTIALS");
+        token = "token-inventado";
+        assertError(get("/api/auth/me"), 401, "UNAUTHENTICATED");
+        token = adminToken;
+        assertEquals("ADMIN", get("/api/auth/me").body().get("role").asText());
+        assertEquals(204, post("/api/auth/logout", "{}").status());
+        assertError(get("/api/auth/me"), 401, "UNAUTHENTICATED");
+    }
+
+    @Test
+    void anEmployeeOnlySeesAndClocksTheirOwnData() throws Exception {
+        post("/api/people", "{\"id\":\"EMP-1\",\"displayName\":\"Persona Uno\"}");
+        post("/api/people", "{\"id\":\"EMP-2\",\"displayName\":\"Persona Dos\"}");
+        assertEquals(201, post("/api/workplaces", "{\"id\":\"OFI\",\"name\":\"Oficina\"}").status());
+        String office = createOffice();
+        for (String person : new String[]{"EMP-1", "EMP-2"})
+            assertEquals(201, post("/api/assignments", "{\"scheduleId\":\"" + office + "\",\"personId\":\"" + person
+                    + "\",\"validFrom\":\"2026-11-01\",\"workplaceId\":\"OFI\"}").status());
+        assertError(post("/api/assignments", "{\"scheduleId\":\"" + office + "\",\"personId\":\"EMP-1\","
+                + "\"validFrom\":\"2027-01-01\",\"workplaceId\":\"NO\"}"), 404, "WORKPLACE_NOT_FOUND");
+        assertEquals(201, post("/api/users", "{\"username\":\"uno\",\"password\":\"clave-uno-1\","
+                + "\"role\":\"EMPLOYEE\",\"personId\":\"EMP-1\"}").status());
+        assertError(post("/api/users", "{\"username\":\"uno\",\"password\":\"clave-uno-1\","
+                + "\"role\":\"EMPLOYEE\",\"personId\":\"EMP-2\"}"), 409, "ACCOUNT_ALREADY_EXISTS");
+        assertError(post("/api/users", "{\"username\":\"corta\",\"password\":\"123\","
+                + "\"role\":\"EMPLOYEE\",\"personId\":\"EMP-2\"}"), 400, "INVALID_DATA");
+        assertError(post("/api/users", "{\"username\":\"sinpersona\",\"password\":\"clave-larga-1\","
+                + "\"role\":\"EMPLOYEE\"}"), 400, "INVALID_DATA");
+
+        token = null;
+        Reply login = post("/api/auth/login", "{\"username\":\"UNO\",\"password\":\"clave-uno-1\"}");
+        assertEquals(200, login.status());
+        assertEquals("EMPLOYEE", login.body().at("/user/role").asText());
+        assertEquals("Persona Uno", login.body().at("/user/displayName").asText());
+        token = login.body().get("token").asText();
+
+        clock.set(at(MONDAY, 8, 2));
+        Reply entry = post("/api/clock-events", "{\"type\":\"ENTRY\"}");
+        assertEquals(201, entry.status(), String.valueOf(entry.body()));
+        assertEquals("EMP-1", entry.body().at("/event/personId").asText());
+        assertEquals("WEB", entry.body().at("/event/source").asText());
+        assertEquals("OFI", entry.body().at("/event/workplaceId").asText(), "el fichaje guarda el centro");
+        assertEquals("Oficina", entry.body().at("/presence/workplace/name").asText());
+        assertError(post("/api/clock-events", "{\"personId\":\"EMP-2\",\"type\":\"ENTRY\"}"), 403, "FORBIDDEN");
+        assertError(post("/api/clock-events", "{\"type\":\"EXIT\",\"timestamp\":\"2026-11-16T07:00:00Z\"}"),
+                403, "FORBIDDEN");
+        assertError(post("/api/clock-events", "{\"type\":\"EXIT\",\"source\":\"ADMIN\"}"), 403, "FORBIDDEN");
+        assertEquals(1, get("/api/clock-events?from=2026-11-16").body().size());
+        assertError(get("/api/clock-events?personId=EMP-2&from=2026-11-16"), 403, "FORBIDDEN");
+        assertEquals("PRESENT", get("/api/presence/EMP-1").body().get("status").asText());
+        assertError(get("/api/presence/EMP-2"), 403, "FORBIDDEN");
+        assertEquals(200, get("/api/reports/daily?from=2026-11-16").status());
+        assertEquals(1, get("/api/assignments").body().size(), "solo su asignacion");
+        assertEquals(200, get("/api/schedules").status());
+        for (String adminOnly : new String[]{"/api/presence", "/api/people", "/api/users", "/api/audit"})
+            assertError(get(adminOnly), 403, "FORBIDDEN");
+        assertError(post("/api/holidays", "{\"date\":\"2026-12-24\",\"description\":\"x\"}"), 403, "FORBIDDEN");
+
+        // El responsable cambia la clave: se cierran las sesiones del empleado.
+        String employeeToken = token;
+        token = null;
+        token = post("/api/auth/login", "{\"username\":\"admin\",\"password\":\"" + ADMIN_PASSWORD + "\"}")
+                .body().get("token").asText();
+        assertEquals(204, post("/api/users/uno/password", "{\"password\":\"nueva-clave-1\"}").status());
+        token = employeeToken;
+        assertError(get("/api/auth/me"), 401, "UNAUTHENTICATED");
+    }
+
+    @Test
     void corsPreflightIsAnswered() throws Exception {
         HttpResponse<Void> response = http.send(HttpRequest.newBuilder(uri("/api/clock-events"))
                 .method("OPTIONS", HttpRequest.BodyPublishers.noBody())
                 .header("Origin", "http://localhost:8081").build(), HttpResponse.BodyHandlers.discarding());
         assertEquals(204, response.statusCode());
         assertEquals("*", response.headers().firstValue("Access-Control-Allow-Origin").orElseThrow());
-        assertTrue(response.headers().firstValue("Access-Control-Allow-Headers").orElseThrow().contains("X-Actor"));
+        assertTrue(response.headers().firstValue("Access-Control-Allow-Headers").orElseThrow().contains("Authorization"));
     }
 }

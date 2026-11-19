@@ -73,10 +73,11 @@ class UseCasesTest {
         var audit = adapters.auditTrail();
         var tx = adapters.transactions();
         people = new PersonAdministrationService(personRepo, audit, tx);
-        schedules = new ScheduleAdministrationService(scheduleRepo, assignmentRepo, personRepo, holidayRepo, audit, tx);
+        schedules = new ScheduleAdministrationService(scheduleRepo, assignmentRepo, personRepo, holidayRepo,
+                adapters.workplaceRepository(), audit, tx);
         clocking = new RegisterClockEventService(personRepo, eventRepo, assignmentRepo, audit, tx, clock, ZONE);
         queries = new AttendanceQueryService(personRepo, scheduleRepo, assignmentRepo, holidayRepo, eventRepo,
-                justificationRepo, audit, clock, ZONE);
+                justificationRepo, adapters.workplaceRepository(), audit, clock, ZONE);
         justifications = new IncidentJustificationService(personRepo, scheduleRepo, assignmentRepo, holidayRepo,
                 eventRepo, justificationRepo, audit, tx, clock, ZONE);
 
@@ -88,7 +89,7 @@ class UseCasesTest {
     }
 
     private void assignTeam(LocalDate from, LocalDate to) {
-        schedules.assign(new AssignScheduleCommand(office.id(), TargetType.TEAM, "oficina", from, to, "test"));
+        schedules.assign(new AssignScheduleCommand(office.id(), TargetType.TEAM, "oficina", from, to, null, "test"));
     }
 
     private void clockAt(String person, ClockEventType type, Instant at) {
@@ -100,7 +101,7 @@ class UseCasesTest {
     void fullDayFlowWithLateArrival() {
         assignTeam(MONDAY, null);
         clockAt("EMP-1", ClockEventType.ENTRY, at(MONDAY, 8, 30));
-        assertEquals(PresenceStatus.PRESENT, queries.presenceOf("EMP-1").status());
+        assertEquals(PresenceStatus.PRESENT, queries.presenceOf("EMP-1").state().status());
         clockAt("EMP-1", ClockEventType.EXIT, at(MONDAY, 15, 0));
         clock.set(at(MONDAY, 20, 0));
 
@@ -134,7 +135,7 @@ class UseCasesTest {
         assignTeam(MONDAY, null);
         Schedule restaurant = schedules.createSchedule(id -> new software.ulpgc.presencia.domain.schedule.SplitSchedule(
                 id, "Restaurante", Duration.ofMinutes(5), WEEKDAYS, Fixtures.restaurant().slots()), "test");
-        schedules.assign(new AssignScheduleCommand(restaurant.id(), TargetType.PERSON, "EMP-1", MONDAY, MONDAY, "t"));
+        schedules.assign(new AssignScheduleCommand(restaurant.id(), TargetType.PERSON, "EMP-1", MONDAY, MONDAY, null, "t"));
         clock.set(at(MONDAY, 23, 59));
         assertEquals("Restaurante", queries.dailyReport("EMP-1", MONDAY, MONDAY).getFirst().scheduleName());
         assertEquals("Oficina", queries.dailyReport("EMP-2", MONDAY, MONDAY).getFirst().scheduleName());
@@ -148,13 +149,13 @@ class UseCasesTest {
         assertThrows(AssignmentOverlapException.class, () -> assignTeam(MONDAY.plusDays(10), null));
         assertDoesNotThrow(() -> assignTeam(MONDAY.plusDays(11), null));
         assertThrows(ScheduleNotFoundException.class, () -> schedules.assign(
-                new AssignScheduleCommand("NOPE", TargetType.PERSON, "EMP-1", MONDAY, null, "t")));
+                new AssignScheduleCommand("NOPE", TargetType.PERSON, "EMP-1", MONDAY, null, null, "t")));
         assertThrows(PersonNotFoundException.class, () -> schedules.assign(
-                new AssignScheduleCommand(office.id(), TargetType.PERSON, "NOPE", MONDAY, null, "t")));
+                new AssignScheduleCommand(office.id(), TargetType.PERSON, "NOPE", MONDAY, null, null, "t")));
         assertThrows(InvalidDataException.class, () -> schedules.assign(
-                new AssignScheduleCommand(office.id(), TargetType.TEAM, "inexistente", MONDAY, null, "t")));
+                new AssignScheduleCommand(office.id(), TargetType.TEAM, "inexistente", MONDAY, null, null, "t")));
         assertThrows(InvalidDataException.class, () -> schedules.assign(
-                new AssignScheduleCommand(office.id(), TargetType.PERSON, "EMP-3", MONDAY, MONDAY.minusDays(1), "t")));
+                new AssignScheduleCommand(office.id(), TargetType.PERSON, "EMP-3", MONDAY, MONDAY.minusDays(1), null, "t")));
     }
 
     @Test

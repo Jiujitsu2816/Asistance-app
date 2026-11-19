@@ -7,6 +7,7 @@ import software.ulpgc.presencia.application.port.out.HolidayRepository;
 import software.ulpgc.presencia.application.port.out.PersonRepository;
 import software.ulpgc.presencia.application.port.out.ScheduleRepository;
 import software.ulpgc.presencia.application.port.out.Transactions;
+import software.ulpgc.presencia.application.port.out.WorkplaceRepository;
 import software.ulpgc.presencia.domain.Require;
 import software.ulpgc.presencia.domain.assignment.ScheduleAssignment;
 import software.ulpgc.presencia.domain.assignment.TargetType;
@@ -16,6 +17,7 @@ import software.ulpgc.presencia.domain.error.HolidayAlreadyExistsException;
 import software.ulpgc.presencia.domain.error.InvalidDataException;
 import software.ulpgc.presencia.domain.error.PersonNotFoundException;
 import software.ulpgc.presencia.domain.error.ScheduleNotFoundException;
+import software.ulpgc.presencia.domain.error.WorkplaceNotFoundException;
 import software.ulpgc.presencia.domain.person.Person;
 import software.ulpgc.presencia.domain.schedule.Schedule;
 
@@ -29,16 +31,18 @@ public final class ScheduleAdministrationService implements ScheduleAdministrati
     private final AssignmentRepository assignments;
     private final PersonRepository people;
     private final HolidayRepository holidays;
+    private final WorkplaceRepository workplaces;
     private final AuditTrail audit;
     private final Transactions transactions;
 
     public ScheduleAdministrationService(ScheduleRepository schedules, AssignmentRepository assignments,
-                                         PersonRepository people, HolidayRepository holidays, AuditTrail audit,
-                                         Transactions transactions) {
+                                         PersonRepository people, HolidayRepository holidays,
+                                         WorkplaceRepository workplaces, AuditTrail audit, Transactions transactions) {
         this.schedules = schedules;
         this.assignments = assignments;
         this.people = people;
         this.holidays = holidays;
+        this.workplaces = workplaces;
         this.audit = audit;
         this.transactions = transactions;
     }
@@ -69,10 +73,12 @@ public final class ScheduleAdministrationService implements ScheduleAdministrati
     public ScheduleAssignment assign(AssignScheduleCommand command) {
         ScheduleAssignment assignment = new ScheduleAssignment("ASG-" + UUID.randomUUID().toString().substring(0, 8),
                 command.scheduleId(), command.targetType(), command.targetId(), command.validFrom(),
-                command.validTo());
+                command.validTo(), command.workplaceId());
         return transactions.inTransaction(() -> {
             Schedule schedule = getSchedule(assignment.scheduleId());
             validateTarget(assignment);
+            if (assignment.workplaceId() != null && workplaces.findById(assignment.workplaceId()).isEmpty())
+                throw new WorkplaceNotFoundException("No existe el centro de trabajo '" + assignment.workplaceId() + "'");
             assignments.findAll().stream()
                     .filter(other -> other.sameTarget(assignment) && other.overlaps(assignment))
                     .findFirst()
@@ -84,7 +90,8 @@ public final class ScheduleAdministrationService implements ScheduleAdministrati
             assignments.save(assignment);
             audit.record(Actors.normalize(command.actor()), "SCHEDULE_ASSIGNED", "assignment", assignment.id(),
                     schedule.name() + " -> " + assignment.targetType() + " " + assignment.targetId() + " desde "
-                            + assignment.validFrom() + (assignment.validTo() == null ? "" : " hasta " + assignment.validTo()));
+                            + assignment.validFrom() + (assignment.validTo() == null ? "" : " hasta " + assignment.validTo())
+                            + (assignment.workplaceId() == null ? "" : " en " + assignment.workplaceId()));
             return assignment;
         });
     }

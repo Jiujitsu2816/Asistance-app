@@ -25,7 +25,7 @@ public final class JdbcClockEventRepository implements ClockEventRepository {
     public void append(ClockEvent e) {
         db.run(c -> {
             try (var st = c.prepareStatement("INSERT INTO clock_event "
-                    + "(id, person_id, event_type, occurred_at, recorded_at, source, note) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+                    + "(id, person_id, event_type, occurred_at, recorded_at, source, note, workplace_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
                 st.setString(1, e.id());
                 st.setString(2, e.personId());
                 st.setString(3, e.type().name());
@@ -33,6 +33,7 @@ public final class JdbcClockEventRepository implements ClockEventRepository {
                 Jdbc.setInstant(st, 5, e.recordedAt());
                 st.setString(6, e.source().name());
                 st.setString(7, e.note());
+                st.setString(8, e.workplaceId());
                 return st.executeUpdate();
             }
         });
@@ -72,6 +73,7 @@ public final class JdbcClockEventRepository implements ClockEventRepository {
     private static ClockEvent map(ResultSet rs) throws SQLException {
         return new ClockEvent(rs.getString("id"), rs.getString("person_id"),
                 ClockEventType.valueOf(rs.getString("event_type")), Jdbc.instant(rs, "occurred_at"),
-                Jdbc.instant(rs, "recorded_at"), ClockSource.valueOf(rs.getString("source")), rs.getString("note"));
+                Jdbc.instant(rs, "recorded_at"), ClockSource.valueOf(rs.getString("source")), rs.getString("note"),
+                rs.getString("workplace_id"));
     }
 }

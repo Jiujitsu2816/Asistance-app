@@ -6,6 +6,7 @@ import software.ulpgc.presencia.domain.attendance.IncidentType;
 import software.ulpgc.presencia.domain.attendance.PresenceState;
 import software.ulpgc.presencia.domain.audit.AuditEntry;
 import software.ulpgc.presencia.domain.clocking.ClockEvent;
+import software.ulpgc.presencia.domain.workplace.Workplace;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -15,9 +16,12 @@ public interface AttendanceQueryUseCase {
     /** Rango maximo de dias de una consulta. */
     int MAX_RANGE_DAYS = 366;
 
-    List<PresenceState> currentPresence();
+    /** Presencia de una persona y centro de trabajo de su asignacion vigente hoy (puede ser null). */
+    record PersonPresence(PresenceState state, Workplace workplace) { }
 
-    PresenceState presenceOf(String personId);
+    List<PersonPresence> currentPresence();
+
+    PersonPresence presenceOf(String personId);
 
     /** personId null = todas las personas. */
     List<ClockEvent> clockEvents(String personId, LocalDate from, LocalDate to);

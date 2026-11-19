@@ -62,3 +62,21 @@ CREATE TABLE IF NOT EXISTS audit_log (
     entity_id   VARCHAR(160) NOT NULL,
     detail      VARCHAR(400)
 );
+
+-- Centros de trabajo (edificios, tiendas, plantas...).
+CREATE TABLE IF NOT EXISTS workplace (
+    id      VARCHAR(32) PRIMARY KEY,
+    name    VARCHAR(80) NOT NULL,
+    address VARCHAR(120)
+);
+ALTER TABLE schedule_assignment ADD COLUMN IF NOT EXISTS workplace_id VARCHAR(32) REFERENCES workplace (id);
+ALTER TABLE clock_event ADD COLUMN IF NOT EXISTS workplace_id VARCHAR(32) REFERENCES workplace (id);
+
+-- Cuentas de acceso. La clave solo se guarda protegida (PBKDF2 con sal aleatoria).
+CREATE TABLE IF NOT EXISTS user_account (
+    username      VARCHAR(32)  PRIMARY KEY,
+    role          VARCHAR(10)  NOT NULL,
+    person_id     VARCHAR(32)  REFERENCES person (id),
+    password_hash VARCHAR(300) NOT NULL,
+    created_at    TIMESTAMP WITH TIME ZONE NOT NULL
+);

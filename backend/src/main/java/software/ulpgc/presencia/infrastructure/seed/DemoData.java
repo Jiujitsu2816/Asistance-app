@@ -6,6 +6,8 @@ import software.ulpgc.presencia.application.port.in.RegisterClockEventUseCase;
 import software.ulpgc.presencia.application.port.in.RegisterClockEventUseCase.RegisterClockEventCommand;
 import software.ulpgc.presencia.application.port.in.ScheduleAdministrationUseCase;
 import software.ulpgc.presencia.application.port.in.ScheduleAdministrationUseCase.AssignScheduleCommand;
+import software.ulpgc.presencia.application.port.in.WorkplaceAdministrationUseCase;
+import software.ulpgc.presencia.domain.workplace.Workplace;
 import software.ulpgc.presencia.domain.assignment.TargetType;
 import software.ulpgc.presencia.domain.calendar.Holiday;
 import software.ulpgc.presencia.domain.clocking.ClockEventType;
@@ -34,7 +36,8 @@ import java.util.List;
 import java.util.TreeSet;
 
 /**
- * Datos de ejemplo ficticios (sin datos personales reales). Se cargan a traves de los casos
+ * Datos de ejemplo ficticios (sin datos personales reales ni cuentas ni claves: la primera
+ * cuenta de responsable se crea desde la aplicacion y las de empleado, desde ella). Se cargan a traves de los casos
  * de uso, igual que lo haria un frontend, y solo si la base de datos esta vacia. Las fechas
  * son relativas al dia de arranque para que la demostracion funcione en cualquier fecha.
  */
@@ -42,14 +45,17 @@ public final class DemoData {
     private static final String ACTOR = "datos-iniciales";
 
     private final PersonAdministrationUseCase people;
+    private final WorkplaceAdministrationUseCase workplaces;
     private final ScheduleAdministrationUseCase schedules;
     private final RegisterClockEventUseCase clocking;
     private final Clock clock;
     private final ZoneId zone;
 
-    public DemoData(PersonAdministrationUseCase people, ScheduleAdministrationUseCase schedules,
+    public DemoData(PersonAdministrationUseCase people, WorkplaceAdministrationUseCase workplaces,
+                    ScheduleAdministrationUseCase schedules,
                     RegisterClockEventUseCase clocking, Clock clock, ZoneId zone) {
         this.people = people;
+        this.workplaces = workplaces;
         this.schedules = schedules;
         this.clocking = clocking;
         this.clock = clock;
@@ -57,8 +63,16 @@ public final class DemoData {
     }
 
     public boolean loadIfEmpty() {
-        if (!people.list().isEmpty() || !schedules.listSchedules().isEmpty()) return false;
+        if (!people.list().isEmpty() || !schedules.listSchedules().isEmpty() || !workplaces.list().isEmpty())
+            return false;
         LocalDate today = LocalDate.now(clock.withZone(zone));
+
+        for (Workplace w : List.of(
+                new Workplace("OFICINA", "Oficina central", "Edificio A, planta 2"),
+                new Workplace("RESTAURANTE", "Restaurante del puerto", "Local 4"),
+                new Workplace("HOSP-P3", "Hospital - planta 3", "Edificio de hospitalizacion"),
+                new Workplace("HOSP-URG", "Hospital - urgencias", "Edificio de urgencias")))
+            workplaces.create(w, ACTOR);
 
         person("EMP-001", "Persona Oficina A", "administracion");
         person("EMP-002", "Persona Oficina B", "administracion");
@@ -97,13 +111,13 @@ public final class DemoData {
                 new TreeSet<>(List.of(today.minusDays(3), today, today.plusDays(4)))), ACTOR);
 
         LocalDate from = today.minusDays(6);
-        assign(office, TargetType.TEAM, "administracion", from);
+        assign(office, TargetType.TEAM, "administracion", from, "OFICINA");
         schedules.assign(new AssignScheduleCommand(office.id(), TargetType.PERSON, "EMP-008", today.minusDays(60),
-                today.minusDays(31), ACTOR));
-        assign(restaurant, TargetType.PERSON, "EMP-003", from);
-        assign(shifts, TargetType.PERSON, "EMP-004", from);
-        assign(physicalGuard, TargetType.PERSON, "EMP-005", from);
-        assign(localizedGuard, TargetType.PERSON, "EMP-006", from);
+                today.minusDays(31), "OFICINA", ACTOR));
+        assign(restaurant, TargetType.PERSON, "EMP-003", from, "RESTAURANTE");
+        assign(shifts, TargetType.PERSON, "EMP-004", from, "HOSP-P3");
+        assign(physicalGuard, TargetType.PERSON, "EMP-005", from, "HOSP-URG");
+        assign(localizedGuard, TargetType.PERSON, "EMP-006", from, "HOSP-URG");
 
         for (var holiday : List.of(new Holiday(LocalDate.of(2026, 12, 8), "Inmaculada Concepción"),
                 new Holiday(LocalDate.of(2026, 12, 25), "Navidad"),
@@ -128,8 +142,8 @@ public final class DemoData {
         people.register(new RegisterPersonCommand(id, name, team, ACTOR));
     }
 
-    private void assign(Schedule schedule, TargetType type, String target, LocalDate from) {
-        schedules.assign(new AssignScheduleCommand(schedule.id(), type, target, from, null, ACTOR));
+    private void assign(Schedule schedule, TargetType type, String target, LocalDate from, String workplace) {
+        schedules.assign(new AssignScheduleCommand(schedule.id(), type, target, from, null, workplace, ACTOR));
     }
 
     /**
