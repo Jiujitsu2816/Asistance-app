@@ -65,6 +65,29 @@ El sistema son **dos procesos independientes**: el **backend** (API HTTP/JSON en
 3. Cierra sesión y entra con ese usuario: verás **Mi fichaje** (fichar, estado actual y mi horario) y
    **Mis registros**.
 
+### Si se olvida una clave
+
+- **Empleado** (o cualquier cuenta, si queda un responsable con acceso): en **Personal y centros →
+  Accesos a la aplicación**, escribir una clave nueva en su fila y pulsar **Cambiar**. Se cierran sus
+  sesiones abiertas.
+- **Responsable sin ningún otro responsable con acceso**: recuperación local, en el equipo donde está la
+  base de datos y **con el backend parado** (si está en marcha, la orden avisa de que la base de datos
+  está en uso). Desde la carpeta del proyecto:
+
+```bash
+java -jar backend/target/presencia-backend-app.jar --recuperar-acceso
+```
+
+  lista los usuarios existentes, y
+
+```bash
+java -jar backend/target/presencia-backend-app.jar --recuperar-acceso USUARIO
+```
+
+  asigna a esa cuenta una clave aleatoria nueva y la muestra una sola vez en la consola. El cambio queda
+  en la auditoría con el autor `recuperacion-local`. Solo puede hacerlo quien tiene acceso a los ficheros
+  de la base de datos, igual que la recuperación de un servidor real.
+
 ### Con IntelliJ IDEA
 
 1. *File → Open…* y selecciona la carpeta del repositorio (detecta el `pom.xml` multimódulo).
@@ -626,7 +649,7 @@ Fichaje en nombre de una persona sin horario: rechazado con `SCHEDULE_NOT_ASSIGN
 
 ## 13. Verificación realizada
 
-### Pruebas automatizadas (`mvnw test`: 61 pruebas, todas correctas)
+### Pruebas automatizadas (`mvnw test`: 63 pruebas, todas correctas)
 
 | Clase de prueba | Qué verifica |
 |---|---|
@@ -634,6 +657,7 @@ Fichaje en nombre de una persona sin horario: rechazado con `SCHEDULE_NOT_ASSIGN
 | `ClockingPolicyTest` (4) | Entrada duplicada, salida sin entrada, orden cronológico y fichajes futuros |
 | `AttendanceEvaluatorTest` (20) | Puntualidad, retraso, salida anticipada, ausencia, salida pendiente, festivos, trabajo extra, horario partido por tramos, turno de noche que cruza la medianoche, guardias física y localizada, justificaciones, estados de presencia |
 | `UseCasesTest` (9) | Casos de uso con **adaptadores en memoria**: flujo completo, errores de fichaje, prioridad persona/equipo, solapes, festivos, justificación única y auditoría |
+| `PasswordRecoveryTest` (2) | Recuperación local del acceso del responsable: lista de cuentas, clave nueva válida, la antigua deja de valer y queda auditado |
 | `SecurityUseCasesTest` (5) | Primer responsable una sola vez, inicio de sesión, caducidad y cierre de sesión, cuentas (una por persona) y cambio de clave que cierra sesiones, reglas de `AccessControl` |
 | `HttpApiIntegrationTest` (8) | Backend real (HTTP + H2): flujo de fichaje y consulta, **todos los códigos de error**, los 4 tipos de horario, **persistencia tras reiniciar**, datos iniciales, CORS, **401/403** y que un **empleado solo accede a sus datos** (y ficha con su centro) |
 | `ArchitectureTest` (3) | Reglas de dependencia de la arquitectura hexagonal |
@@ -688,7 +712,7 @@ curl -s localhost:8080/api/presence/EMP-002 -H 'Authorization: Bearer TOKEN'
 
 - **Seguridad**: inicio de sesión con usuario y clave (PBKDF2) y tokens aleatorios con caducidad, pero
   sin HTTPS (en local), sin límite de intentos fallidos ni recuperación de clave por correo (la clave la
-  cambia un responsable). Las sesiones están en memoria: al reiniciar el backend hay que volver a entrar.
+  cambia un responsable o, para el último responsable, la recuperación local `--recuperar-acceso`). Las sesiones están en memoria: al reiniciar el backend hay que volver a entrar.
   El backend escucha por defecto solo en `localhost`; para usarlo desde móviles de la red habría que
   cambiar `presencia.http.host` y `presencia.frontend.host` y, en un despliegue real, poner HTTPS delante.
   CORS está abierto (`*`), lo que es aceptable porque la autenticación va en una cabecera y no en cookies.
