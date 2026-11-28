@@ -1,7 +1,7 @@
 package software.ulpgc.presencia.domain;
 
 import org.junit.jupiter.api.Test;
-import software.ulpgc.presencia.domain.error.InvalidDataException;
+import software.ulpgc.presencia.domain.error.ErrorCode;
 import software.ulpgc.presencia.domain.schedule.CycleDay;
 import software.ulpgc.presencia.domain.schedule.OnCallMode;
 import software.ulpgc.presencia.domain.schedule.RotatingShiftSchedule;
@@ -16,6 +16,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static software.ulpgc.presencia.domain.Fixtures.*;
+import static software.ulpgc.presencia.support.Errors.assertError;
 
 class ScheduleTypesTest {
 
@@ -32,16 +33,16 @@ class ScheduleTypesTest {
     void splitScheduleHasTwoSlotsAndRequiresABreak() {
         assertEquals(2, restaurant().periodsStartingOn(MONDAY.plusDays(1)).size());
         assertTrue(restaurant().periodsStartingOn(MONDAY).isEmpty(), "el lunes cierra");
-        assertThrows(InvalidDataException.class, () -> new SplitSchedule("x", "x", Duration.ZERO, WEEKDAYS,
+        assertError(ErrorCode.INVALID_DATA, () -> new SplitSchedule("x", "x", Duration.ZERO, WEEKDAYS,
                 List.of(new TimeSlot(LocalTime.of(9, 0), LocalTime.of(14, 0)),
                         new TimeSlot(LocalTime.of(14, 0), LocalTime.of(18, 0)))));
-        assertThrows(InvalidDataException.class, () -> new SplitSchedule("x", "x", Duration.ZERO, WEEKDAYS,
+        assertError(ErrorCode.INVALID_DATA, () -> new SplitSchedule("x", "x", Duration.ZERO, WEEKDAYS,
                 List.of(new TimeSlot(LocalTime.of(9, 0), LocalTime.of(14, 0)))));
     }
 
     @Test
     void slotMustEndAfterItStarts() {
-        assertThrows(InvalidDataException.class, () -> new TimeSlot(LocalTime.of(15, 0), LocalTime.of(8, 0)));
+        assertError(ErrorCode.INVALID_DATA, () -> new TimeSlot(LocalTime.of(15, 0), LocalTime.of(8, 0)));
     }
 
     @Test
@@ -60,7 +61,7 @@ class ScheduleTypesTest {
     void rotatingShiftsCannotOverlapTheNextDay() {
         var night = new CycleDay.Work(new Shift("Noche", LocalTime.of(23, 0), Duration.ofHours(9)));
         var morning = new CycleDay.Work(new Shift("Manana", LocalTime.of(7, 0), Duration.ofHours(8)));
-        assertThrows(InvalidDataException.class, () -> new RotatingShiftSchedule("x", "x", Duration.ZERO,
+        assertError(ErrorCode.INVALID_DATA, () -> new RotatingShiftSchedule("x", "x", Duration.ZERO,
                 MONDAY, List.of(night, morning)));
     }
 
@@ -74,7 +75,7 @@ class ScheduleTypesTest {
 
     @Test
     void toleranceIsBounded() {
-        assertThrows(InvalidDataException.class, () -> new SplitSchedule("x", "x", Duration.ofMinutes(-1),
+        assertError(ErrorCode.INVALID_DATA, () -> new SplitSchedule("x", "x", Duration.ofMinutes(-1),
                 WEEKDAYS, restaurant().slots()));
     }
 }

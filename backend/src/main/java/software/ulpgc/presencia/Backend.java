@@ -1,22 +1,20 @@
 package software.ulpgc.presencia;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import software.ulpgc.presencia.application.port.in.AttendanceQueryUseCase;
-import software.ulpgc.presencia.application.port.in.WorkplaceAdministrationUseCase;
 import software.ulpgc.presencia.application.port.in.AccountAdministrationUseCase;
+import software.ulpgc.presencia.application.port.in.AttendanceQueryUseCase;
 import software.ulpgc.presencia.application.port.in.AuthenticationUseCase;
-import software.ulpgc.presencia.application.port.in.JustifyIncidentUseCase;
 import software.ulpgc.presencia.application.port.in.PersonAdministrationUseCase;
 import software.ulpgc.presencia.application.port.in.RegisterClockEventUseCase;
 import software.ulpgc.presencia.application.port.in.ScheduleAdministrationUseCase;
-import software.ulpgc.presencia.application.service.AttendanceQueryService;
-import software.ulpgc.presencia.application.service.WorkplaceAdministrationService;
+import software.ulpgc.presencia.application.port.in.WorkplaceAdministrationUseCase;
 import software.ulpgc.presencia.application.service.AccountAdministrationService;
+import software.ulpgc.presencia.application.service.AttendanceQueryService;
 import software.ulpgc.presencia.application.service.AuthenticationService;
-import software.ulpgc.presencia.application.service.IncidentJustificationService;
 import software.ulpgc.presencia.application.service.PersonAdministrationService;
 import software.ulpgc.presencia.application.service.RegisterClockEventService;
 import software.ulpgc.presencia.application.service.ScheduleAdministrationService;
+import software.ulpgc.presencia.application.service.WorkplaceAdministrationService;
 import software.ulpgc.presencia.infrastructure.config.AppConfig;
 import software.ulpgc.presencia.infrastructure.http.ApiRoutes;
 import software.ulpgc.presencia.infrastructure.http.HttpApiServer;
@@ -27,7 +25,6 @@ import software.ulpgc.presencia.infrastructure.persistence.JdbcAssignmentReposit
 import software.ulpgc.presencia.infrastructure.persistence.JdbcAuditTrail;
 import software.ulpgc.presencia.infrastructure.persistence.JdbcClockEventRepository;
 import software.ulpgc.presencia.infrastructure.persistence.JdbcHolidayRepository;
-import software.ulpgc.presencia.infrastructure.persistence.JdbcJustificationRepository;
 import software.ulpgc.presencia.infrastructure.persistence.JdbcPersonRepository;
 import software.ulpgc.presencia.infrastructure.persistence.JdbcScheduleRepository;
 import software.ulpgc.presencia.infrastructure.persistence.JdbcUserAccountRepository;
@@ -59,7 +56,6 @@ public final class Backend implements AutoCloseable {
         var assignmentRepository = new JdbcAssignmentRepository(db);
         var holidayRepository = new JdbcHolidayRepository(db);
         var eventRepository = new JdbcClockEventRepository(db);
-        var justificationRepository = new JdbcJustificationRepository(db);
         var workplaceRepository = new JdbcWorkplaceRepository(db);
         var accountRepository = new JdbcUserAccountRepository(db);
         var sessions = new InMemorySessionRepository();
@@ -77,15 +73,11 @@ public final class Backend implements AutoCloseable {
         RegisterClockEventUseCase clocking = new RegisterClockEventService(personRepository, eventRepository,
                 assignmentRepository, audit, db, clock, zone);
         AttendanceQueryUseCase queries = new AttendanceQueryService(personRepository, scheduleRepository,
-                assignmentRepository, holidayRepository, eventRepository, justificationRepository, workplaceRepository,
+                assignmentRepository, holidayRepository, eventRepository, workplaceRepository,
                 audit, clock, zone);
-        JustifyIncidentUseCase justifications = new IncidentJustificationService(personRepository,
-                scheduleRepository, assignmentRepository, holidayRepository, eventRepository,
-                justificationRepository, audit, db, clock, zone);
-
         if (config.seed()) new DemoData(people, workplaces, schedules, clocking, clock, zone).loadIfEmpty();
 
-        Router routes = new ApiRoutes(auth, accounts, people, workplaces, schedules, clocking, queries, justifications,
+        Router routes = new ApiRoutes(auth, accounts, people, workplaces, schedules, clocking, queries,
                 clock, zone).router();
         try {
             server = new HttpApiServer(config.host(), config.port(), routes, json, config.allowedOrigin());

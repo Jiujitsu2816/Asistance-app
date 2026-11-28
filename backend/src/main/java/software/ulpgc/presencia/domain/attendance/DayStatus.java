@@ -9,7 +9,6 @@ public enum DayStatus {
     IN_PROGRESS,
     COMPLETED,
     EXTRA_WORK,
-    JUSTIFIED,
     EARLY_DEPARTURE,
     LATE,
     CHECKOUT_PENDING,

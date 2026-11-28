@@ -1,13 +1,14 @@
 package software.ulpgc.presencia.domain.error;
 
 /**
- * Error de negocio con un codigo estable. El adaptador HTTP traduce cada codigo a un
- * estado HTTP; el dominio no conoce HTTP.
+ * Error de negocio con un codigo estable ({@link ErrorCode}). Una sola clase basta: lo que
+ * distingue a cada error es su codigo, que el adaptador HTTP traduce a un estado HTTP. El
+ * dominio no conoce HTTP.
  */
-public abstract class DomainException extends RuntimeException {
+public final class DomainException extends RuntimeException {
     private final ErrorCode code;
 
-    protected DomainException(ErrorCode code, String message) {
+    public DomainException(ErrorCode code, String message) {
         super(message);
         this.code = code;
     }

@@ -12,12 +12,8 @@ import software.ulpgc.presencia.domain.Require;
 import software.ulpgc.presencia.domain.assignment.ScheduleAssignment;
 import software.ulpgc.presencia.domain.assignment.TargetType;
 import software.ulpgc.presencia.domain.calendar.Holiday;
-import software.ulpgc.presencia.domain.error.AssignmentOverlapException;
-import software.ulpgc.presencia.domain.error.HolidayAlreadyExistsException;
-import software.ulpgc.presencia.domain.error.InvalidDataException;
-import software.ulpgc.presencia.domain.error.PersonNotFoundException;
-import software.ulpgc.presencia.domain.error.ScheduleNotFoundException;
-import software.ulpgc.presencia.domain.error.WorkplaceNotFoundException;
+import software.ulpgc.presencia.domain.error.DomainException;
+import software.ulpgc.presencia.domain.error.ErrorCode;
 import software.ulpgc.presencia.domain.person.Person;
 import software.ulpgc.presencia.domain.schedule.Schedule;
 
@@ -66,7 +62,7 @@ public final class ScheduleAdministrationService implements ScheduleAdministrati
     @Override
     public Schedule getSchedule(String id) {
         return schedules.findById(Require.text(id, "scheduleId", 64))
-                .orElseThrow(() -> new ScheduleNotFoundException("No existe el horario '" + id + "'"));
+                .orElseThrow(() -> new DomainException(ErrorCode.SCHEDULE_NOT_FOUND, "No existe el horario '" + id + "'"));
     }
 
     @Override
@@ -78,12 +74,12 @@ public final class ScheduleAdministrationService implements ScheduleAdministrati
             Schedule schedule = getSchedule(assignment.scheduleId());
             validateTarget(assignment);
             if (assignment.workplaceId() != null && workplaces.findById(assignment.workplaceId()).isEmpty())
-                throw new WorkplaceNotFoundException("No existe el centro de trabajo '" + assignment.workplaceId() + "'");
+                throw new DomainException(ErrorCode.WORKPLACE_NOT_FOUND, "No existe el centro de trabajo '" + assignment.workplaceId() + "'");
             assignments.findAll().stream()
                     .filter(other -> other.sameTarget(assignment) && other.overlaps(assignment))
                     .findFirst()
                     .ifPresent(other -> {
-                        throw new AssignmentOverlapException("El periodo se solapa con la asignacion " + other.id()
+                        throw new DomainException(ErrorCode.ASSIGNMENT_OVERLAP, "El periodo se solapa con la asignacion " + other.id()
                                 + " (" + other.validFrom() + " - " + (other.validTo() == null ? "sin fin" : other.validTo())
                                 + ") del mismo destino");
                     });
@@ -99,9 +95,9 @@ public final class ScheduleAdministrationService implements ScheduleAdministrati
     private void validateTarget(ScheduleAssignment assignment) {
         if (assignment.targetType() == TargetType.PERSON) {
             if (people.findById(assignment.targetId()).isEmpty())
-                throw new PersonNotFoundException("No existe ninguna persona con id '" + assignment.targetId() + "'");
+                throw new DomainException(ErrorCode.PERSON_NOT_FOUND, "No existe ninguna persona con id '" + assignment.targetId() + "'");
         } else if (people.findAll().stream().noneMatch(p -> p.belongsTo(assignment.targetId()))) {
-            throw new InvalidDataException("No hay ninguna persona en el equipo '" + assignment.targetId() + "'");
+            throw new DomainException(ErrorCode.INVALID_DATA, "No hay ninguna persona en el equipo '" + assignment.targetId() + "'");
         }
     }
 
@@ -111,7 +107,7 @@ public final class ScheduleAdministrationService implements ScheduleAdministrati
         if (personId == null || personId.isBlank())
             return all.stream().sorted(Comparator.comparing(ScheduleAssignment::validFrom)).toList();
         Person person = people.findById(personId.strip())
-                .orElseThrow(() -> new PersonNotFoundException("No existe ninguna persona con id '" + personId + "'"));
+                .orElseThrow(() -> new DomainException(ErrorCode.PERSON_NOT_FOUND, "No existe ninguna persona con id '" + personId + "'"));
         return all.stream().filter(a -> a.appliesTo(person))
                 .sorted(Comparator.comparing(ScheduleAssignment::validFrom)).toList();
     }
@@ -120,7 +116,7 @@ public final class ScheduleAdministrationService implements ScheduleAdministrati
     public Holiday addHoliday(Holiday holiday, String actor) {
         return transactions.inTransaction(() -> {
             if (holidays.findByDate(holiday.date()).isPresent())
-                throw new HolidayAlreadyExistsException("Ya hay un festivo el " + holiday.date());
+                throw new DomainException(ErrorCode.HOLIDAY_ALREADY_EXISTS, "Ya hay un festivo el " + holiday.date());
             holidays.save(holiday);
             audit.record(Actors.normalize(actor), "HOLIDAY_CREATED", "holiday", holiday.date().toString(),
                     holiday.description());

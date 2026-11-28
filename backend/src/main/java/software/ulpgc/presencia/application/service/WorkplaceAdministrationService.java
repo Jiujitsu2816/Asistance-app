@@ -4,7 +4,8 @@ import software.ulpgc.presencia.application.port.in.WorkplaceAdministrationUseCa
 import software.ulpgc.presencia.application.port.out.AuditTrail;
 import software.ulpgc.presencia.application.port.out.Transactions;
 import software.ulpgc.presencia.application.port.out.WorkplaceRepository;
-import software.ulpgc.presencia.domain.error.WorkplaceAlreadyExistsException;
+import software.ulpgc.presencia.domain.error.DomainException;
+import software.ulpgc.presencia.domain.error.ErrorCode;
 import software.ulpgc.presencia.domain.workplace.Workplace;
 
 import java.util.Comparator;
@@ -25,7 +26,7 @@ public final class WorkplaceAdministrationService implements WorkplaceAdministra
     public Workplace create(Workplace workplace, String actor) {
         return transactions.inTransaction(() -> {
             if (workplaces.findById(workplace.id()).isPresent())
-                throw new WorkplaceAlreadyExistsException("Ya existe el centro '" + workplace.id() + "'");
+                throw new DomainException(ErrorCode.WORKPLACE_ALREADY_EXISTS, "Ya existe el centro '" + workplace.id() + "'");
             workplaces.save(workplace);
             audit.record(Actors.normalize(actor), "WORKPLACE_CREATED", "workplace", workplace.id(), workplace.name());
             return workplace;

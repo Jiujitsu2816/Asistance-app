@@ -1,7 +1,8 @@
 package software.ulpgc.presencia.infrastructure.http;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import software.ulpgc.presencia.domain.error.InvalidDataException;
+import software.ulpgc.presencia.domain.error.DomainException;
+import software.ulpgc.presencia.domain.error.ErrorCode;
 
 import java.io.IOException;
 import java.net.URLDecoder;
@@ -38,11 +39,11 @@ public final class ApiRequest {
 
     public LocalDate queryDate(String name) {
         String value = query(name);
-        if (value == null) throw new InvalidDataException("Falta el parametro '" + name + "' (formato AAAA-MM-DD)");
+        if (value == null) throw new DomainException(ErrorCode.INVALID_DATA, "Falta el parametro '" + name + "' (formato AAAA-MM-DD)");
         try {
             return LocalDate.parse(value);
         } catch (DateTimeParseException e) {
-            throw new InvalidDataException("El parametro '" + name + "' no es una fecha AAAA-MM-DD: " + value);
+            throw new DomainException(ErrorCode.INVALID_DATA, "El parametro '" + name + "' no es una fecha AAAA-MM-DD: " + value);
         }
     }
 
@@ -56,7 +57,7 @@ public final class ApiRequest {
         try {
             return Enum.valueOf(type, value.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new InvalidDataException("Valor no valido para '" + name + "': " + value);
+            throw new DomainException(ErrorCode.INVALID_DATA, "Valor no valido para '" + name + "': " + value);
         }
     }
 
@@ -66,15 +67,15 @@ public final class ApiRequest {
         try {
             return Integer.parseInt(value);
         } catch (NumberFormatException e) {
-            throw new InvalidDataException("El parametro '" + name + "' debe ser un numero");
+            throw new DomainException(ErrorCode.INVALID_DATA, "El parametro '" + name + "' debe ser un numero");
         }
     }
 
     /** Cuerpo JSON obligatorio. Los errores de formato se traducen en INVALID_DATA. */
     public <T> T body(Class<T> type) throws IOException {
-        if (body.length == 0) throw new InvalidDataException("La peticion necesita un cuerpo JSON");
+        if (body.length == 0) throw new DomainException(ErrorCode.INVALID_DATA, "La peticion necesita un cuerpo JSON");
         T value = json.readValue(body, type);
-        if (value == null) throw new InvalidDataException("La peticion necesita un cuerpo JSON");
+        if (value == null) throw new DomainException(ErrorCode.INVALID_DATA, "La peticion necesita un cuerpo JSON");
         return value;
     }
 

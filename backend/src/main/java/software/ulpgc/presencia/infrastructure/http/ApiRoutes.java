@@ -1,18 +1,16 @@
 package software.ulpgc.presencia.infrastructure.http;
 
-import software.ulpgc.presencia.application.port.in.AccountAdministrationUseCase;
 import software.ulpgc.presencia.application.port.in.AccountAdministrationUseCase.CreateAccountCommand;
+import software.ulpgc.presencia.application.port.in.AccountAdministrationUseCase;
 import software.ulpgc.presencia.application.port.in.AttendanceQueryUseCase;
-import software.ulpgc.presencia.application.port.in.AuthenticationUseCase;
 import software.ulpgc.presencia.application.port.in.AuthenticationUseCase.LoginResult;
-import software.ulpgc.presencia.application.port.in.JustifyIncidentUseCase;
-import software.ulpgc.presencia.application.port.in.JustifyIncidentUseCase.JustifyIncidentCommand;
-import software.ulpgc.presencia.application.port.in.PersonAdministrationUseCase;
+import software.ulpgc.presencia.application.port.in.AuthenticationUseCase;
 import software.ulpgc.presencia.application.port.in.PersonAdministrationUseCase.RegisterPersonCommand;
-import software.ulpgc.presencia.application.port.in.RegisterClockEventUseCase;
+import software.ulpgc.presencia.application.port.in.PersonAdministrationUseCase;
 import software.ulpgc.presencia.application.port.in.RegisterClockEventUseCase.RegisterClockEventCommand;
-import software.ulpgc.presencia.application.port.in.ScheduleAdministrationUseCase;
+import software.ulpgc.presencia.application.port.in.RegisterClockEventUseCase;
 import software.ulpgc.presencia.application.port.in.ScheduleAdministrationUseCase.AssignScheduleCommand;
+import software.ulpgc.presencia.application.port.in.ScheduleAdministrationUseCase;
 import software.ulpgc.presencia.application.port.in.WorkplaceAdministrationUseCase;
 import software.ulpgc.presencia.application.security.AccessControl;
 import software.ulpgc.presencia.application.security.Principal;
@@ -24,7 +22,8 @@ import software.ulpgc.presencia.domain.attendance.IncidentType;
 import software.ulpgc.presencia.domain.calendar.Holiday;
 import software.ulpgc.presencia.domain.clocking.ClockEvent;
 import software.ulpgc.presencia.domain.clocking.ClockSource;
-import software.ulpgc.presencia.domain.error.ForbiddenException;
+import software.ulpgc.presencia.domain.error.DomainException;
+import software.ulpgc.presencia.domain.error.ErrorCode;
 import software.ulpgc.presencia.domain.person.Person;
 import software.ulpgc.presencia.domain.schedule.OnCallMode;
 import software.ulpgc.presencia.domain.schedule.ScheduleKind;
@@ -40,8 +39,6 @@ import software.ulpgc.presencia.infrastructure.http.dto.ClockEventResponse;
 import software.ulpgc.presencia.infrastructure.http.dto.DailyAttendanceDto;
 import software.ulpgc.presencia.infrastructure.http.dto.HolidayDto;
 import software.ulpgc.presencia.infrastructure.http.dto.IncidentDto;
-import software.ulpgc.presencia.infrastructure.http.dto.JustificationDto;
-import software.ulpgc.presencia.infrastructure.http.dto.JustificationRequest;
 import software.ulpgc.presencia.infrastructure.http.dto.LoginRequest;
 import software.ulpgc.presencia.infrastructure.http.dto.LoginResponse;
 import software.ulpgc.presencia.infrastructure.http.dto.PasswordRequest;
@@ -82,7 +79,6 @@ public final class ApiRoutes {
     private final ScheduleAdministrationUseCase schedules;
     private final RegisterClockEventUseCase clocking;
     private final AttendanceQueryUseCase queries;
-    private final JustifyIncidentUseCase justifications;
     private final Clock clock;
     private final ZoneId zone;
     private final Times times;
@@ -90,7 +86,7 @@ public final class ApiRoutes {
     public ApiRoutes(AuthenticationUseCase auth, AccountAdministrationUseCase accounts,
                      PersonAdministrationUseCase people, WorkplaceAdministrationUseCase workplaces,
                      ScheduleAdministrationUseCase schedules, RegisterClockEventUseCase clocking,
-                     AttendanceQueryUseCase queries, JustifyIncidentUseCase justifications, Clock clock, ZoneId zone) {
+                     AttendanceQueryUseCase queries, Clock clock, ZoneId zone) {
         this.auth = auth;
         this.accounts = accounts;
         this.people = people;
@@ -98,7 +94,6 @@ public final class ApiRoutes {
         this.schedules = schedules;
         this.clocking = clocking;
         this.queries = queries;
-        this.justifications = justifications;
         this.clock = clock;
         this.zone = zone;
         this.times = new Times(zone);
@@ -220,12 +215,6 @@ public final class ApiRoutes {
                                     r.queryEnum("type", IncidentType.class)).stream()
                             .map(i -> IncidentDto.from(i, times)).toList());
                 })
-                .post("/api/incidents/justifications", r -> {
-                    Principal admin = admin(r);
-                    JustificationRequest body = r.body(JustificationRequest.class);
-                    return ApiResponse.created(JustificationDto.from(justifications.justify(
-                            new JustifyIncidentCommand(body.incidentKey(), body.reason(), admin.username())), times));
-                })
                 .get("/api/audit", r -> {
                     admin(r);
                     return ApiResponse.ok(queries.audit(r.queryInt("limit", 50)).stream()
@@ -287,9 +276,9 @@ public final class ApiRoutes {
         ClockSource source = body.source() == null && !principal.isAdmin() ? ClockSource.WEB : body.source();
         if (!principal.isAdmin()) {
             if (body.timestamp() != null)
-                throw new ForbiddenException("Solo un responsable puede registrar fichajes con una hora indicada");
+                throw new DomainException(ErrorCode.FORBIDDEN, "Solo un responsable puede registrar fichajes con una hora indicada");
             if (source != null && !EMPLOYEE_SOURCES.contains(source))
-                throw new ForbiddenException("Origen no permitido para un empleado: " + source);
+                throw new DomainException(ErrorCode.FORBIDDEN, "Origen no permitido para un empleado: " + source);
         }
         ClockEvent event = clocking.register(new RegisterClockEventCommand(personId, body.type(), source,
                 body.timestamp() == null ? null : body.timestamp().toInstant(), body.note(), principal.username()));

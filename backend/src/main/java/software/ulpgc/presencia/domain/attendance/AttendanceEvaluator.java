@@ -53,12 +53,11 @@ public final class AttendanceEvaluator {
 
     /** Datos necesarios para evaluar a una persona. */
     public record Input(String personId, ScheduleLookup schedules, HolidayCalendar holidays,
-                        List<ClockEvent> events, Map<String, IncidentJustification> justifications) {
+                        List<ClockEvent> events) {
         public Input {
             events = events.stream()
                     .sorted(Comparator.comparing(ClockEvent::occurredAt).thenComparing(ClockEvent::recordedAt))
                     .toList();
-            justifications = Map.copyOf(justifications);
         }
     }
 
@@ -251,10 +250,10 @@ public final class AttendanceEvaluator {
                 if (!LocalDate.ofInstant(s.start(), zone).equals(date)) continue;
                 worked += s.worked().toMinutes();
                 open |= s.isOpen();
-                incidents.add(incident(date, IncidentType.UNSCHEDULED_WORK, "Fuera de horario", s.start(), null,
+                incidents.add(incident(date, IncidentType.UNSCHEDULED_WORK, "Fuera de horario", null,
                         s.start(), s.worked().toMinutes(), "Fichaje fuera de los periodos esperados"));
                 if (s.isOpen() && Duration.between(s.start(), now).compareTo(MAX_UNSCHEDULED_OPEN) > 0)
-                    incidents.add(incident(date, IncidentType.MISSING_CHECKOUT, "Fuera de horario", s.start(),
+                    incidents.add(incident(date, IncidentType.MISSING_CHECKOUT, "Fuera de horario",
                             null, null, Duration.between(s.start(), now).toMinutes(),
                             "Entrada fuera de horario sin salida desde hace mas de "
                                     + MAX_UNSCHEDULED_OPEN.toHours() + " h"));
@@ -276,62 +275,53 @@ public final class AttendanceEvaluator {
             Duration tolerance = p.tolerance();
             if (sessions.isEmpty()) {
                 if (p.required() && !now.isBefore(p.start().plus(tolerance)))
-                    found.add(incident(p.date(), IncidentType.ABSENCE, label, p.start(), p.start(), null,
+                    found.add(incident(p.date(), IncidentType.ABSENCE, label, p.start(), null,
                             p.period().duration().toMinutes(), "Sin fichaje de entrada en el periodo " + label));
                 return found;
             }
             Instant firstEntry = sessions.getFirst().start();
             if (p.required() && firstEntry.isAfter(p.start().plus(tolerance))) {
                 long late = Duration.between(p.start(), firstEntry).toMinutes();
-                found.add(incident(p.date(), IncidentType.LATE_ARRIVAL, label, p.start(), p.start(), firstEntry,
+                found.add(incident(p.date(), IncidentType.LATE_ARRIVAL, label, p.start(), firstEntry,
                         late, "Entrada a las " + hour(firstEntry) + ", " + late + " min tarde"));
             }
             WorkSession last = sessions.getLast();
             if (last.isOpen()) {
                 if (now.isAfter(p.end().plus(tolerance)))
-                    found.add(incident(p.date(), IncidentType.MISSING_CHECKOUT, label, p.end(), p.end(), null,
+                    found.add(incident(p.date(), IncidentType.MISSING_CHECKOUT, label, p.end(), null,
                             Duration.between(p.end(), now).toMinutes(),
                             "Sin salida registrada; el periodo termino a las " + hour(p.end())));
             } else if (p.required() && !now.isBefore(p.end())) {
                 Instant exit = last.end().orElseThrow();
                 if (exit.isBefore(p.end().minus(tolerance))) {
                     long early = Duration.between(exit, p.end()).toMinutes();
-                    found.add(incident(p.date(), IncidentType.EARLY_DEPARTURE, label, p.end(), p.end(), exit,
+                    found.add(incident(p.date(), IncidentType.EARLY_DEPARTURE, label, p.end(), exit,
                             early, "Salida a las " + hour(exit) + ", " + early + " min antes"));
                 }
             }
             return found;
         }
 
-        /**
-         * @param reference instante que identifica la incidencia en su clave (inicio o fin del
-         *                  periodo, o la entrada si es fuera de horario).
-         */
-        private Incident incident(LocalDate date, IncidentType type, String label, Instant reference,
-                                  Instant expectedAt, Instant actualAt, long minutes, String description) {
-            LocalTime refTime = reference.atZone(zone).toLocalTime().withSecond(0).withNano(0);
-            String key = new IncidentKey(input.personId(), date, type, refTime).value();
-            return new Incident(key, input.personId(), date, type, label, expectedAt, actualAt, minutes,
-                    description, input.justifications().get(key));
+        private Incident incident(LocalDate date, IncidentType type, String label, Instant expectedAt,
+                                  Instant actualAt, long minutes, String description) {
+            return new Incident(input.personId(), date, type, label, expectedAt, actualAt, minutes, description);
         }
 
         private DayStatus status(Plan plan, List<Incident> incidents, boolean open, boolean allEnded,
                                  boolean anyStarted) {
             if (plan.schedule().isEmpty()) return DayStatus.NO_SCHEDULE;
-            List<IncidentType> pending = incidents.stream().filter(i -> !i.justified()).map(Incident::type).toList();
+            List<IncidentType> pending = incidents.stream().map(Incident::type).toList();
             if (pending.contains(IncidentType.ABSENCE)) return DayStatus.ABSENT;
             if (pending.contains(IncidentType.MISSING_CHECKOUT)) return DayStatus.CHECKOUT_PENDING;
             if (pending.contains(IncidentType.LATE_ARRIVAL)) return DayStatus.LATE;
             if (pending.contains(IncidentType.EARLY_DEPARTURE)) return DayStatus.EARLY_DEPARTURE;
-            boolean justified = incidents.stream().anyMatch(Incident::justified);
             if (plan.periods().isEmpty()) {
                 if (pending.contains(IncidentType.UNSCHEDULED_WORK)) return DayStatus.EXTRA_WORK;
                 if (plan.skippedByHoliday()) return DayStatus.HOLIDAY;
-                return justified ? DayStatus.JUSTIFIED : DayStatus.REST;
+                return DayStatus.REST;
             }
             if (open || (anyStarted && !allEnded)) return DayStatus.IN_PROGRESS;
             if (!anyStarted) return DayStatus.PENDING;
-            if (justified) return DayStatus.JUSTIFIED;
             if (pending.contains(IncidentType.UNSCHEDULED_WORK)) return DayStatus.EXTRA_WORK;
             return DayStatus.COMPLETED;
         }

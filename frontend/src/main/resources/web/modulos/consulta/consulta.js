@@ -1,6 +1,6 @@
 // Modulo de CONSULTA DE PRESENCIA E INCIDENCIAS.
 // - Responsable: presencia actual de todos, informes por persona y periodo, incidencias (y su
-//   justificacion), registro de fichajes y auditoria.
+//   registro de fichajes y auditoria.
 // - Empleado: sus propios informes, incidencias y fichajes.
 import {
   INCIDENT_LABELS, addDays, badge, card, dateTime, el, errorText, field, fillPeople, hint, minutes, period,
@@ -104,7 +104,7 @@ async function mount(root, ctx) {
           el("td", { class: `num ${d.deviationMinutes < 0 ? "negative" : ""}` }, minutes(d.deviationMinutes)),
           el("td", {}, badge(d.status)),
           el("td", {}, d.incidents.map((i) => el("div", {}, badge(i.type, INCIDENT_LABELS), " ",
-            el("span", { class: "sub" }, i.description, i.justified ? ` · justificada: ${i.justification.reason}` : "")))))))));
+            el("span", { class: "sub" }, i.description)))))))));
     };
     form.addEventListener("submit", (e) => {
       e.preventDefault();
@@ -128,43 +128,22 @@ async function mount(root, ctx) {
     const form = el("form", { class: "grid", id: "incidents-form" }, personSelect("incidents-person", { all: true }),
       field("Desde", from), field("Hasta", to), field("Tipo", type), el("button", { type: "submit" }, "Buscar"));
     container.append(card(isAdmin ? "Incidencias" : "Mis incidencias",
-      hint(isAdmin
-        ? "Se calculan a partir de los fichajes y el horario. Se pueden justificar (cita médica, formación...); la "
-          + "justificación queda auditada y no se puede repetir."
-        : "Retrasos, ausencias y salidas calculados a partir de tus fichajes. Si alguna está justificada, consúltalo con tu responsable."),
+      hint("Ausencias, retrasos y salidas calculados a partir de los fichajes y del horario asignado."),
       form, notice, result));
     const load = async () => {
       const list = await api.listIncidents({ personId: value("incidents-person"), from: from.value, to: to.value, type: type.value });
-      const headers = ["Fecha", ...(isAdmin ? ["Persona"] : []), "Tipo", "Periodo", "Detalle", "Justificación"];
+      const headers = ["Fecha", ...(isAdmin ? ["Persona"] : []), "Tipo", "Periodo", "Detalle"];
       result.replaceChildren(wrap(table(headers, list.map((i) => el("tr", {},
         el("td", { class: "date" }, i.date),
         isAdmin ? el("td", {}, el("strong", {}, i.personId), el("div", { class: "sub" }, nameOf(i.personId))) : null,
-        el("td", {}, badge(i.type, INCIDENT_LABELS)), el("td", {}, i.periodLabel), el("td", {}, i.description),
-        el("td", {}, i.justified
-          ? el("div", {}, badge("JUSTIFIED"), el("div", { class: "sub" }, `${i.justification.reason} · ${i.justification.justifiedBy}`))
-          : isAdmin ? justifyForm(i, notice, load) : "Pendiente"))), "Sin incidencias en el periodo")));
+        el("td", {}, badge(i.type, INCIDENT_LABELS)), el("td", {}, i.periodLabel), el("td", {}, i.description))),
+        "Sin incidencias en el periodo")));
     };
     form.addEventListener("submit", (e) => {
       e.preventDefault();
       load().catch((err) => showMessage(notice, "error", "No se pudieron consultar.", errorText(err)));
     });
     await load();
-  }
-
-  function justifyForm(incident, notice, reload) {
-    const reason = el("input", { type: "text", maxlength: 200, placeholder: "Motivo", "aria-label": "Motivo" });
-    return el("form", {
-      class: "inline", onsubmit: async (event) => {
-        event.preventDefault();
-        try {
-          await api.justifyIncident(incident.key, reason.value);
-          showMessage(notice, "ok", "Incidencia justificada.");
-          await reload();
-        } catch (e) {
-          showMessage(notice, "error", "No se pudo justificar.", errorText(e));
-        }
-      },
-    }, reason, el("button", { class: "small", type: "submit" }, "Justificar"));
   }
 
   // ---- Fichajes -------------------------------------------------------------------------
@@ -201,7 +180,7 @@ async function mount(root, ctx) {
     const auditTable = el("div", { id: "audit-table" },
       wrap(table(["#", "Fecha", "Usuario", "Acción", "Entidad", "Detalle"], rows)));
     container.append(card("Auditoría de modificaciones",
-      hint("Últimos 50 cambios: cuentas, personas, centros, horarios, asignaciones, festivos, fichajes y justificaciones."),
+      hint("Últimos 50 cambios: cuentas, personas, centros, horarios, asignaciones, festivos y fichajes."),
       auditTable));
   }
 

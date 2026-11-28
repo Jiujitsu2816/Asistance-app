@@ -11,14 +11,7 @@ import software.ulpgc.presencia.application.service.AccountAdministrationService
 import software.ulpgc.presencia.application.service.AuthenticationService;
 import software.ulpgc.presencia.application.service.PersonAdministrationService;
 import software.ulpgc.presencia.domain.account.Role;
-import software.ulpgc.presencia.domain.error.AccountAlreadyExistsException;
-import software.ulpgc.presencia.domain.error.AccountNotFoundException;
-import software.ulpgc.presencia.domain.error.ForbiddenException;
-import software.ulpgc.presencia.domain.error.InvalidCredentialsException;
-import software.ulpgc.presencia.domain.error.InvalidDataException;
-import software.ulpgc.presencia.domain.error.PersonNotFoundException;
-import software.ulpgc.presencia.domain.error.SetupAlreadyDoneException;
-import software.ulpgc.presencia.domain.error.UnauthenticatedException;
+import software.ulpgc.presencia.domain.error.ErrorCode;
 import software.ulpgc.presencia.support.InMemoryAdapters;
 import software.ulpgc.presencia.support.MutableClock;
 
@@ -26,6 +19,7 @@ import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static software.ulpgc.presencia.domain.Fixtures.*;
+import static software.ulpgc.presencia.support.Errors.assertError;
 
 /** Inicio de sesion, cuentas y permisos con adaptadores en memoria. */
 class SecurityUseCasesTest {
@@ -55,29 +49,29 @@ class SecurityUseCasesTest {
     @Test
     void theFirstAdminIsCreatedOnlyOnce() {
         assertTrue(auth.setupRequired());
-        assertThrows(InvalidDataException.class, () -> auth.setup("jefa", pwd("corta")));
+        assertError(ErrorCode.INVALID_DATA, () -> auth.setup("jefa", pwd("corta")));
         LoginResult result = auth.setup("Jefa", pwd("clave-segura-1"));
         assertEquals("jefa", result.principal().username(), "el usuario se guarda en minusculas");
         assertTrue(result.principal().isAdmin());
         assertFalse(auth.setupRequired());
-        assertThrows(SetupAlreadyDoneException.class, () -> auth.setup("otra", pwd("clave-segura-2")));
+        assertError(ErrorCode.SETUP_ALREADY_DONE, () -> auth.setup("otra", pwd("clave-segura-2")));
         assertEquals("test$clave-segura-1", adapters.accounts.get("jefa").passwordHash(), "solo se guarda el hash");
     }
 
     @Test
     void loginSessionsExpireAndCanBeClosed() {
         auth.setup("jefa", pwd("clave-segura-1"));
-        assertThrows(InvalidCredentialsException.class, () -> auth.login("jefa", pwd("otra-clave")));
-        assertThrows(InvalidCredentialsException.class, () -> auth.login("nadie", pwd("otra-clave")));
+        assertError(ErrorCode.INVALID_CREDENTIALS, () -> auth.login("jefa", pwd("otra-clave")));
+        assertError(ErrorCode.INVALID_CREDENTIALS, () -> auth.login("nadie", pwd("otra-clave")));
         LoginResult session = auth.login(" JEFA ", pwd("clave-segura-1"));
         assertEquals("jefa", auth.authenticate(session.token()).username());
-        assertThrows(UnauthenticatedException.class, () -> auth.authenticate(null));
-        assertThrows(UnauthenticatedException.class, () -> auth.authenticate("inventado"));
+        assertError(ErrorCode.UNAUTHENTICATED, () -> auth.authenticate(null));
+        assertError(ErrorCode.UNAUTHENTICATED, () -> auth.authenticate("inventado"));
         clock.advance(Duration.ofHours(12));
-        assertThrows(UnauthenticatedException.class, () -> auth.authenticate(session.token()), "caducada");
+        assertError(ErrorCode.UNAUTHENTICATED, () -> auth.authenticate(session.token()), "caducada");
         LoginResult other = auth.login("jefa", pwd("clave-segura-1"));
         auth.logout(other.token());
-        assertThrows(UnauthenticatedException.class, () -> auth.authenticate(other.token()));
+        assertError(ErrorCode.UNAUTHENTICATED, () -> auth.authenticate(other.token()));
     }
 
     @Test
@@ -85,14 +79,14 @@ class SecurityUseCasesTest {
         var employee = accounts.create(new CreateAccountCommand("uno", pwd("clave-uno-1"), Role.EMPLOYEE, "EMP-1", "jefa"));
         assertEquals("Persona Uno", auth.login("uno", pwd("clave-uno-1")).principal().displayName());
         assertEquals("EMP-1", employee.personId());
-        assertThrows(AccountAlreadyExistsException.class, () -> accounts.create(
+        assertError(ErrorCode.ACCOUNT_ALREADY_EXISTS, () -> accounts.create(
                 new CreateAccountCommand("uno", pwd("clave-uno-1"), Role.EMPLOYEE, "EMP-1", "jefa")));
-        assertThrows(AccountAlreadyExistsException.class, () -> accounts.create(
+        assertError(ErrorCode.ACCOUNT_ALREADY_EXISTS, () -> accounts.create(
                 new CreateAccountCommand("otro", pwd("clave-uno-1"), Role.EMPLOYEE, "EMP-1", "jefa")),
                 "una persona solo tiene una cuenta");
-        assertThrows(PersonNotFoundException.class, () -> accounts.create(
+        assertError(ErrorCode.PERSON_NOT_FOUND, () -> accounts.create(
                 new CreateAccountCommand("tres", pwd("clave-uno-1"), Role.EMPLOYEE, "EMP-3", "jefa")));
-        assertThrows(InvalidDataException.class, () -> accounts.create(
+        assertError(ErrorCode.INVALID_DATA, () -> accounts.create(
                 new CreateAccountCommand("x", pwd("clave-uno-1"), Role.EMPLOYEE, "EMP-1", "jefa")), "usuario corto");
     }
 
@@ -101,10 +95,10 @@ class SecurityUseCasesTest {
         accounts.create(new CreateAccountCommand("uno", pwd("clave-uno-1"), Role.EMPLOYEE, "EMP-1", "jefa"));
         LoginResult session = auth.login("uno", pwd("clave-uno-1"));
         accounts.resetPassword("uno", pwd("clave-nueva-1"), "jefa");
-        assertThrows(UnauthenticatedException.class, () -> auth.authenticate(session.token()));
-        assertThrows(InvalidCredentialsException.class, () -> auth.login("uno", pwd("clave-uno-1")));
+        assertError(ErrorCode.UNAUTHENTICATED, () -> auth.authenticate(session.token()));
+        assertError(ErrorCode.INVALID_CREDENTIALS, () -> auth.login("uno", pwd("clave-uno-1")));
         assertNotNull(auth.login("uno", pwd("clave-nueva-1")).token());
-        assertThrows(AccountNotFoundException.class, () -> accounts.resetPassword("nadie", pwd("clave-nueva-1"), "jefa"));
+        assertError(ErrorCode.ACCOUNT_NOT_FOUND, () -> accounts.resetPassword("nadie", pwd("clave-nueva-1"), "jefa"));
     }
 
     @Test
@@ -115,8 +109,8 @@ class SecurityUseCasesTest {
         assertEquals("EMP-2", AccessControl.personScope(admin, "EMP-2"));
         assertEquals("EMP-1", AccessControl.personScope(employee, null), "el empleado siempre es el mismo");
         assertEquals("EMP-1", AccessControl.personScope(employee, "EMP-1"));
-        assertThrows(ForbiddenException.class, () -> AccessControl.personScope(employee, "EMP-2"));
-        assertThrows(ForbiddenException.class, () -> AccessControl.requireAdmin(employee));
+        assertError(ErrorCode.FORBIDDEN, () -> AccessControl.personScope(employee, "EMP-2"));
+        assertError(ErrorCode.FORBIDDEN, () -> AccessControl.requireAdmin(employee));
         assertDoesNotThrow(() -> AccessControl.requireAdmin(admin));
     }
 }

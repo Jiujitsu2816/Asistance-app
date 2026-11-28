@@ -3,7 +3,7 @@
 export const STATUS_LABELS = {
   // Estado diario
   NO_SCHEDULE: "Sin horario", HOLIDAY: "Festivo", REST: "Descanso", PENDING: "Pendiente",
-  IN_PROGRESS: "En curso", COMPLETED: "Cumplido", EXTRA_WORK: "Trabajo extra", JUSTIFIED: "Justificado",
+  IN_PROGRESS: "En curso", COMPLETED: "Cumplido", EXTRA_WORK: "Trabajo extra",
   EARLY_DEPARTURE: "Salida anticipada", LATE: "Retraso", CHECKOUT_PENDING: "Salida pendiente", ABSENT: "Ausente",
   // Presencia actual
   PRESENT: "Presente", PRESENT_OUT_OF_SCHEDULE: "Presente (fuera de horario)", EXPECTED: "Esperado",
@@ -22,7 +22,7 @@ export const KIND_LABELS = {
 };
 
 const TONES = {
-  PRESENT: "ok", COMPLETED: "ok", JUSTIFIED: "ok", IN_PROGRESS: "info", PRESENT_OUT_OF_SCHEDULE: "info",
+  PRESENT: "ok", COMPLETED: "ok", IN_PROGRESS: "info", PRESENT_OUT_OF_SCHEDULE: "info",
   EXPECTED: "info", ON_CALL: "info", PENDING: "muted", REST: "muted", HOLIDAY: "muted", OFF_DUTY: "muted",
   NO_SCHEDULE: "muted", EXTRA_WORK: "info", LATE: "warn", EARLY_DEPARTURE: "warn", CHECKOUT_PENDING: "warn",
   ABSENT: "bad", ABSENCE: "bad", LATE_ARRIVAL: "warn", MISSING_CHECKOUT: "warn", UNSCHEDULED_WORK: "info",

@@ -1,6 +1,6 @@
 package software.ulpgc.presencia.application.security;
-
-import software.ulpgc.presencia.domain.error.ForbiddenException;
+import software.ulpgc.presencia.domain.error.DomainException;
+import software.ulpgc.presencia.domain.error.ErrorCode;
 
 /**
  * Reglas de permisos:
@@ -13,7 +13,7 @@ public final class AccessControl {
     private AccessControl() { }
 
     public static void requireAdmin(Principal principal) {
-        if (!principal.isAdmin()) throw new ForbiddenException("Esta operacion solo la puede realizar un responsable");
+        if (!principal.isAdmin()) throw new DomainException(ErrorCode.FORBIDDEN, "Esta operacion solo la puede realizar un responsable");
     }
 
     /**
@@ -24,7 +24,7 @@ public final class AccessControl {
         String requested = requestedPersonId == null || requestedPersonId.isBlank() ? null : requestedPersonId.strip();
         if (principal.isAdmin()) return requested;
         if (requested != null && !requested.equals(principal.personId()))
-            throw new ForbiddenException("Solo puedes consultar o registrar tus propios datos");
+            throw new DomainException(ErrorCode.FORBIDDEN, "Solo puedes consultar o registrar tus propios datos");
         return principal.personId();
     }
 }

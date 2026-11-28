@@ -57,7 +57,6 @@ export class HttpPresenceApi {
   presenceOf(personId) { return this.#get(`/presence/${encodeURIComponent(personId)}`); }
   dailyReport({ personId, from, to }) { return this.#get("/reports/daily", { personId, from, to }); }
   listIncidents({ personId, from, to, type } = {}) { return this.#get("/incidents", { personId, from, to, type }); }
-  justifyIncident(incidentKey, reason) { return this.#post("/incidents/justifications", { incidentKey, reason }); }
   audit(limit = 50) { return this.#get("/audit", { limit }); }
 
   async #get(path, params = {}) {

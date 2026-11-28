@@ -10,11 +10,5 @@ import java.time.LocalDate;
  * @param actualAt   hora real fichada, si aplica.
  * @param minutes    magnitud de la desviacion en minutos (retraso, adelanto...).
  */
-public record Incident(String key, String personId, LocalDate date, IncidentType type, String periodLabel,
-                       Instant expectedAt, Instant actualAt, long minutes, String description,
-                       IncidentJustification justification) {
-
-    public boolean justified() {
-        return justification != null;
-    }
-}
+public record Incident(String personId, LocalDate date, IncidentType type, String periodLabel,
+                       Instant expectedAt, Instant actualAt, long minutes, String description) { }

@@ -127,10 +127,8 @@ class HttpApiIntegrationTest {
         assertEquals("2026-11-16T08:25:00Z", events.body().get(0).get("occurredAt").asText());
 
         Reply incidents = get("/api/incidents?from=2026-11-16&to=2026-11-16&type=LATE_ARRIVAL");
-        String key = incidents.body().get(0).get("key").asText();
-        assertEquals(201, post("/api/incidents/justifications",
-                "{\"incidentKey\":\"" + key + "\",\"reason\":\"Atasco justificado\"}").status());
-        assertTrue(get("/api/incidents?from=2026-11-16&to=2026-11-16").body().get(0).get("justified").asBoolean());
+        assertEquals("EMP-1", incidents.body().get(0).get("personId").asText());
+        assertEquals(25, incidents.body().get(0).get("minutes").asInt());
         assertEquals("admin", get("/api/audit?limit=1").body().get(0).get("actor").asText());
     }
 

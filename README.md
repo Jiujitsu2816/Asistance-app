@@ -8,6 +8,9 @@ correcciones) o de **empleado** (su horario, fichar entrada y salida y sus regis
 está dividida en **módulos frontend independientes**: registro de asistencia, consulta de presencia e
 incidencias, definición de horarios, y personal y centros.
 
+> Guía para la defensa oral (decisiones de arquitectura, guion de 20 minutos y preguntas probables):
+> [`docs/DEFENSA.md`](docs/DEFENSA.md).
+
 ## Índice
 
 1. [Objetivo](#1-objetivo)
@@ -35,7 +38,7 @@ trabajadas y desviación respecto a lo esperado.
 
 La dificultad está en el dominio: el sistema soporta **horario corrido** (oficina), **horario partido**
 (tienda o restaurante), **turnos rotatorios** y **guardias** (hospital, de presencia física o
-localizadas), además de festivos e incidencias justificadas.
+localizadas), además de festivos y centros de trabajo.
 
 ## 2. Dependencias y versión de JDK
 
@@ -225,10 +228,10 @@ flowchart LR
         SEED["infrastructure.seed<br/>DemoData"]
     end
     subgraph APP["Aplicación"]
-        PIN["port.in<br/>AuthenticationUseCase, AccountAdministrationUseCase<br/>RegisterClockEventUseCase<br/>AttendanceQueryUseCase<br/>ScheduleAdministrationUseCase<br/>PersonAdministrationUseCase<br/>WorkplaceAdministrationUseCase<br/>JustifyIncidentUseCase"]
+        PIN["port.in<br/>AuthenticationUseCase, AccountAdministrationUseCase<br/>RegisterClockEventUseCase<br/>AttendanceQueryUseCase<br/>ScheduleAdministrationUseCase<br/>PersonAdministrationUseCase<br/>WorkplaceAdministrationUseCase"]
         SEC["security<br/>Principal, AccessControl"]
         SVC["service<br/>*Service (casos de uso)"]
-        POUT["port.out<br/>PersonRepository, ScheduleRepository,<br/>AssignmentRepository, HolidayRepository,<br/>ClockEventRepository, JustificationRepository,<br/>WorkplaceRepository, UserAccountRepository,<br/>SessionRepository, PasswordHasher,<br/>AuditTrail, Transactions"]
+        POUT["port.out<br/>PersonRepository, ScheduleRepository,<br/>AssignmentRepository, HolidayRepository,<br/>ClockEventRepository,<br/>WorkplaceRepository, UserAccountRepository,<br/>SessionRepository, PasswordHasher,<br/>AuditTrail, Transactions"]
         PIN --> SVC --> POUT
     end
     subgraph DOM["Dominio (sin dependencias externas)"]
@@ -302,7 +305,6 @@ control-presencia/
 | `RegisterClockEventService` | Caso de uso fichar (cerrojo por persona, validación, auditoría) |
 | `AttendanceQueryService` | Presencia actual, informes, fichajes, incidencias y auditoría |
 | `ScheduleAdministrationService` | Alta de horarios, asignaciones (sin solapes) y festivos |
-| `IncidentJustificationService` | Justificación de incidencias (idea propia) |
 | `HttpApiServer`, `Router`, `ApiRoutes` | Adaptador HTTP y traducción de errores de dominio a códigos HTTP |
 | `Database`, `Jdbc*Repository`, `JdbcAuditTrail` | Persistencia JDBC con transacciones |
 | `AuthenticationService`, `AccountAdministrationService` | Inicio de sesión (tokens con caducidad), primer responsable, cuentas y cambio de clave |
@@ -330,7 +332,7 @@ classDiagram
     class ClockEvent { personId; type ENTRY|EXIT; occurredAt; recordedAt; source; note; workplaceId }
     class Workplace { id; name; address }
     class UserAccount { username; role ADMIN|EMPLOYEE; personId; passwordHash }
-    class Incident { key; type; date; minutes; justification }
+    class Incident { personId; date; type; periodLabel; minutes; description }
     class Holiday { date; description }
     Schedule <|-- ContinuousSchedule
     Schedule <|-- SplitSchedule
@@ -348,8 +350,7 @@ classDiagram
 ```
 
 Las **incidencias se calculan** (no se guardan) a partir de fichajes, horario, festivos y la hora
-actual; así nunca quedan desfasadas si se corrige un fichaje. Su clave estable
-(`persona|fecha|tipo|hora`, p. ej. `EMP-002|2026-11-16|LATE_ARRIVAL|08:00`) permite guardar su justificación.
+actual; así nunca quedan desfasadas si se corrige un fichaje.
 
 **Tablas** (`schema.sql`)
 
@@ -362,7 +363,6 @@ actual; así nunca quedan desfasadas si se corrige un fichaje. Su clave estable
 | `clock_event` | person_id, event_type, occurred_at, recorded_at, source, note, workplace_id — **solo se inserta** |
 | `workplace` | id, name, address (centros de trabajo) |
 | `user_account` | username, role (ADMIN/EMPLOYEE), person_id, password_hash (PBKDF2), created_at |
-| `incident_justification` | incident_key, person_id, reason, justified_by, justified_at |
 | `audit_log` | logged_at, actor, action, entity_type, entity_id, detail — cada modificación |
 
 Los instantes se guardan en UTC (`TIMESTAMP WITH TIME ZONE`) y se devuelven en la zona configurada.
@@ -452,7 +452,7 @@ Encapsuladas en `ClockingPolicy` (al fichar) y `AttendanceEvaluator` (al consult
    - **Fuera de horario**: sesión que no corresponde a ningún periodo (informativo).
 3. Las horas trabajadas solo cuentan sesiones **cerradas**; la desviación (trabajado − esperado) solo se
    calcula para días terminados.
-4. Estado diario (el más grave): Ausente > Salida pendiente > Retraso > Salida anticipada > Justificado
+4. Estado diario (el más grave): Ausente > Salida pendiente > Retraso > Salida anticipada
    > En curso / Pendiente / Cumplido / Descanso / Festivo / Sin horario.
 5. Asignaciones: la individual prevalece sobre la del equipo; las de un mismo destino no se solapan.
 
@@ -496,7 +496,6 @@ cualquiera; **Responsable** = solo perfil ADMIN.
 | GET | `/api/presence/{personId}` | Propio | — | `Presence` |
 | GET | `/api/reports/daily` | Propio | `?personId=&from=&to=` (máx. 366 días) | `Report` con totales y días |
 | GET | `/api/incidents` | Propio | `?personId=&from=&to=&type=` | `[Incident]` |
-| POST | `/api/incidents/justifications` | Responsable | `{"incidentKey","reason"}` | 201 |
 | GET | `/api/audit` | Responsable | `?limit=` (1–500) | `[AuditEntry]` |
 
 Reglas del fichaje de un **empleado**: siempre sobre sí mismo, origen `WEB` (por defecto) o `KIOSK` y con
@@ -529,7 +528,7 @@ Un día del informe (`GET /api/reports/daily`) contiene `date`, `scheduleName`, 
 
 Estados de presencia (`status`): `PRESENT`, `PRESENT_OUT_OF_SCHEDULE`, `CHECKOUT_PENDING`, `ABSENT`,
 `EXPECTED`, `ON_CALL`, `OFF_DUTY`, `NO_SCHEDULE`. Estados diarios: `NO_SCHEDULE`, `HOLIDAY`, `REST`,
-`PENDING`, `IN_PROGRESS`, `COMPLETED`, `EXTRA_WORK`, `JUSTIFIED`, `EARLY_DEPARTURE`, `LATE`,
+`PENDING`, `IN_PROGRESS`, `COMPLETED`, `EXTRA_WORK`, `EARLY_DEPARTURE`, `LATE`,
 `CHECKOUT_PENDING`, `ABSENT`. Tipos de incidencia: `ABSENCE`, `LATE_ARRIVAL`, `EARLY_DEPARTURE`,
 `MISSING_CHECKOUT`, `UNSCHEDULED_WORK`.
 
@@ -547,11 +546,11 @@ Todos los errores tienen el mismo cuerpo:
 | 401 | `UNAUTHENTICATED` | Sin token, token inventado, sesión caducada o cerrada |
 | 401 | `INVALID_CREDENTIALS` | Usuario o clave incorrectos (mismo mensaje exista o no el usuario) |
 | 403 | `FORBIDDEN` | Un empleado intenta ver o fichar datos de otra persona, indicar la hora o usar una operación de responsable |
-| 404 | `PERSON_NOT_FOUND`, `SCHEDULE_NOT_FOUND`, `INCIDENT_NOT_FOUND`, `ACCOUNT_NOT_FOUND`, `WORKPLACE_NOT_FOUND`, `NOT_FOUND` | Recurso o ruta inexistente |
+| 404 | `PERSON_NOT_FOUND`, `SCHEDULE_NOT_FOUND`, `ACCOUNT_NOT_FOUND`, `WORKPLACE_NOT_FOUND`, `NOT_FOUND` | Recurso o ruta inexistente |
 | 405 | `METHOD_NOT_ALLOWED` | Método no admitido en la ruta |
 | 409 | `DUPLICATE_CLOCK_EVENT` | Entrada con otra entrada abierta |
 | 409 | `INCONSISTENT_CLOCK_EVENT` | Salida sin entrada previa, o fichaje anterior al último |
-| 409 | `PERSON_ALREADY_EXISTS`, `HOLIDAY_ALREADY_EXISTS`, `ASSIGNMENT_OVERLAP`, `INCIDENT_ALREADY_JUSTIFIED`, `ACCOUNT_ALREADY_EXISTS`, `WORKPLACE_ALREADY_EXISTS` | Conflictos de alta (una persona solo tiene una cuenta) |
+| 409 | `PERSON_ALREADY_EXISTS`, `HOLIDAY_ALREADY_EXISTS`, `ASSIGNMENT_OVERLAP`, `ACCOUNT_ALREADY_EXISTS`, `WORKPLACE_ALREADY_EXISTS` | Conflictos de alta (una persona solo tiene una cuenta) |
 | 409 | `SETUP_ALREADY_DONE` | Se intenta crear el primer responsable cuando ya existe |
 | 413 | `PAYLOAD_TOO_LARGE` | Cuerpo de más de 64 KB |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | `POST` sin `application/json` |
@@ -570,11 +569,6 @@ es una ayuda) y las claves se guardan con PBKDF2; no hay credenciales en el repo
 **Centros de trabajo.** Cada asignación de horario indica en qué edificio o sede se cumple, y cada
 fichaje guarda el centro de la asignación vigente (la salida, el de su entrada). La presencia actual
 muestra dónde está cada persona.
-
-**Incidencias justificadas.** Desde *Consulta → Incidencias* el responsable justifica una ausencia, un
-retraso o una salida (cita médica, formación...). La justificación guarda motivo, autor y fecha, queda
-auditada, no se puede repetir, y el día pasa a *Justificado* sin perder la incidencia original. Los
-fichajes no se modifican (son de solo añadir), lo que mantiene la trazabilidad.
 
 **Calendario de festivos con reglas por tipo de horario.** Un festivo anula los periodos de los horarios
 corridos y partidos, pero **no** los turnos ni las guardias (cobertura continua del hospital): es una
@@ -619,7 +613,7 @@ Informe por persona y periodo: esperado, trabajado, desviación e incidencias de
 
 ![Informe por persona y periodo](docs/capturas/consulta-informe.png)
 
-Incidencias, con una justificada desde la propia tabla.
+Incidencias calculadas de todas las personas, filtrables por persona, periodo y tipo.
 
 ![Incidencias](docs/capturas/consulta-incidencias.png)
 
@@ -649,14 +643,14 @@ Fichaje en nombre de una persona sin horario: rechazado con `SCHEDULE_NOT_ASSIGN
 
 ## 13. Verificación realizada
 
-### Pruebas automatizadas (`mvnw test`: 63 pruebas, todas correctas)
+### Pruebas automatizadas (`mvnw test`: 61 pruebas, todas correctas)
 
 | Clase de prueba | Qué verifica |
 |---|---|
 | `ScheduleTypesTest` (7) | Periodos de cada tipo de horario, ciclos antes de su inicio, validaciones (tramos sin pausa, solapes de turnos, tolerancia) |
 | `ClockingPolicyTest` (4) | Entrada duplicada, salida sin entrada, orden cronológico y fichajes futuros |
-| `AttendanceEvaluatorTest` (20) | Puntualidad, retraso, salida anticipada, ausencia, salida pendiente, festivos, trabajo extra, horario partido por tramos, turno de noche que cruza la medianoche, guardias física y localizada, justificaciones, estados de presencia |
-| `UseCasesTest` (9) | Casos de uso con **adaptadores en memoria**: flujo completo, errores de fichaje, prioridad persona/equipo, solapes, festivos, justificación única y auditoría |
+| `AttendanceEvaluatorTest` (19) | Puntualidad, retraso, salida anticipada, ausencia, salida pendiente, festivos, trabajo extra, horario partido por tramos, turno de noche que cruza la medianoche, guardias física y localizada, estados de presencia |
+| `UseCasesTest` (8) | Casos de uso con **adaptadores en memoria**: flujo completo, errores de fichaje, prioridad persona/equipo, solapes, festivos y auditoría |
 | `PasswordRecoveryTest` (2) | Recuperación local del acceso del responsable: lista de cuentas, clave nueva válida, la antigua deja de valer y queda auditado |
 | `SecurityUseCasesTest` (5) | Primer responsable una sola vez, inicio de sesión, caducidad y cierre de sesión, cuentas (una por persona) y cambio de clave que cierra sesiones, reglas de `AccessControl` |
 | `HttpApiIntegrationTest` (8) | Backend real (HTTP + H2): flujo de fichaje y consulta, **todos los códigos de error**, los 4 tipos de horario, **persistencia tras reiniciar**, datos iniciales, CORS, **401/403** y que un **empleado solo accede a sus datos** (y ficha con su centro) |
@@ -676,7 +670,7 @@ node docs/e2e/recorrido.cjs docs/capturas
 Comprueba, en un navegador real: creación del responsable y su menú de cuatro módulos; alta del acceso de
 EMP-001 y rechazo de una clave corta; credencial errónea rechazada; menú del empleado (solo *Mi fichaje* y
 *Mis registros*); fichaje de entrada y entrada duplicada rechazada; que el empleado no puede abrir el
-módulo de horarios; presencia con centros, informe, justificación de una incidencia, auditoría; alta de
+módulo de horarios; presencia con centros, informe, incidencias, auditoría; alta de
 turnos rotatorios y rechazo de una guardia sin fechas; fichaje de una persona sin horario rechazado; y
 que no hay errores de JavaScript. También se revisó la vista móvil (sin scroll horizontal).
 
@@ -725,7 +719,7 @@ curl -s localhost:8080/api/presence/EMP-002 -H 'Authorization: Bearer TOKEN'
   Los tramos de horarios corridos y partidos no cruzan la medianoche (para eso están turnos y guardias).
   Las guardias tienen como máximo 24 h. Los festivos son comunes a todos los centros.
 - **Incidencias**: se recalculan en cada consulta; si se cambian asignaciones pasadas, las incidencias
-  de esos días cambian (los fichajes y las justificaciones no). Una justificación no se puede deshacer.
+  de esos días cambian (los fichajes no). No hay justificación de incidencias.
 - **Modificación de datos**: no hay edición ni borrado de horarios, asignaciones, personas, centros o
   cuentas (solo altas y cambio de clave), ni anulación de fichajes más allá de añadir uno nuevo con hora
   indicada; un fichaje no puede ser anterior al último registrado.

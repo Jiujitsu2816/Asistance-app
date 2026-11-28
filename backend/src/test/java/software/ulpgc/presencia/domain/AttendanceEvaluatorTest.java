@@ -5,7 +5,6 @@ import software.ulpgc.presencia.domain.attendance.AttendanceEvaluator;
 import software.ulpgc.presencia.domain.attendance.DailyAttendance;
 import software.ulpgc.presencia.domain.attendance.DayStatus;
 import software.ulpgc.presencia.domain.attendance.Incident;
-import software.ulpgc.presencia.domain.attendance.IncidentJustification;
 import software.ulpgc.presencia.domain.attendance.IncidentType;
 import software.ulpgc.presencia.domain.attendance.PresenceStatus;
 import software.ulpgc.presencia.domain.calendar.Holiday;
@@ -17,7 +16,6 @@ import software.ulpgc.presencia.domain.schedule.Schedule;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -27,12 +25,11 @@ class AttendanceEvaluatorTest {
     private final AttendanceEvaluator evaluator = new AttendanceEvaluator(ZONE);
 
     private AttendanceEvaluator.Input input(Schedule schedule, List<ClockEvent> events) {
-        return input(schedule, events, HolidayCalendar.empty(), Map.of());
+        return input(schedule, events, HolidayCalendar.empty());
     }
 
-    private AttendanceEvaluator.Input input(Schedule schedule, List<ClockEvent> events, HolidayCalendar holidays,
-                                            Map<String, IncidentJustification> justifications) {
-        return new AttendanceEvaluator.Input("EMP-1", date -> Optional.of(schedule), holidays, events, justifications);
+    private AttendanceEvaluator.Input input(Schedule schedule, List<ClockEvent> events, HolidayCalendar holidays) {
+        return new AttendanceEvaluator.Input("EMP-1", date -> Optional.of(schedule), holidays, events);
     }
 
     private DailyAttendance day(Schedule schedule, LocalDate date, Instant now, ClockEvent... events) {
@@ -65,7 +62,6 @@ class AttendanceEvaluatorTest {
         assertEquals(IncidentType.LATE_ARRIVAL, late.type());
         assertEquals(25, late.minutes());
         assertEquals(-25L, day.deviationMinutes());
-        assertEquals("EMP-1|2026-11-16|LATE_ARRIVAL|08:00", late.key());
     }
 
     @Test
@@ -101,11 +97,11 @@ class AttendanceEvaluatorTest {
     @Test
     void holidaysCancelOfficeWorkButNotShifts() {
         var holidays = new HolidayCalendar(List.of(new Holiday(MONDAY, "Festivo de prueba")));
-        DailyAttendance office = evaluator.evaluate(input(office(), List.of(), holidays, Map.of()),
+        DailyAttendance office = evaluator.evaluate(input(office(), List.of(), holidays),
                 MONDAY, MONDAY, at(MONDAY, 20, 0)).getFirst();
         assertEquals(DayStatus.HOLIDAY, office.status());
         assertEquals("Festivo de prueba", office.holiday());
-        DailyAttendance shift = evaluator.evaluate(input(hospitalShifts(), List.of(), holidays, Map.of()),
+        DailyAttendance shift = evaluator.evaluate(input(hospitalShifts(), List.of(), holidays),
                 MONDAY, MONDAY, at(MONDAY, 20, 0)).getFirst();
         assertEquals(DayStatus.ABSENT, shift.status());
     }
@@ -123,7 +119,7 @@ class AttendanceEvaluatorTest {
     @Test
     void noAssignmentMeansNoSchedule() {
         var input = new AttendanceEvaluator.Input("EMP-1", date -> Optional.empty(), HolidayCalendar.empty(),
-                List.of(), Map.of());
+                List.of());
         DailyAttendance day = evaluator.evaluate(input, MONDAY, MONDAY, at(MONDAY, 20, 0)).getFirst();
         assertEquals(DayStatus.NO_SCHEDULE, day.status());
         assertNull(day.deviationMinutes());
@@ -189,18 +185,6 @@ class AttendanceEvaluatorTest {
         assertEquals(90, called.workedMinutes());
     }
 
-    // ---- Justificaciones (idea propia) ------------------------------------------------
-
-    @Test
-    void justifiedIncidentsDoNotDegradeTheStatus() {
-        String key = "EMP-1|2026-11-16|ABSENCE|08:00";
-        var justification = new IncidentJustification(key, "EMP-1", "Cita medica", "rrhh", at(MONDAY, 10, 0));
-        DailyAttendance day = evaluator.evaluate(input(office(), List.of(), HolidayCalendar.empty(),
-                Map.of(key, justification)), MONDAY, MONDAY, at(MONDAY, 20, 0)).getFirst();
-        assertEquals(DayStatus.JUSTIFIED, day.status());
-        assertTrue(day.incidents().getFirst().justified());
-    }
-
     // ---- Presencia actual -------------------------------------------------------------
 
     @Test
@@ -215,7 +199,7 @@ class AttendanceEvaluatorTest {
         assertEquals(PresenceStatus.CHECKOUT_PENDING, evaluator.presence(in, at(MONDAY, 18, 0)).status());
 
         var none = new AttendanceEvaluator.Input("EMP-1", d -> Optional.empty(), HolidayCalendar.empty(),
-                List.of(), Map.of());
+                List.of());
         assertEquals(PresenceStatus.NO_SCHEDULE, evaluator.presence(none, at(MONDAY, 9, 0)).status());
     }
 

@@ -12,10 +12,8 @@ import software.ulpgc.presencia.application.security.Session;
 import software.ulpgc.presencia.domain.account.PasswordPolicy;
 import software.ulpgc.presencia.domain.account.Role;
 import software.ulpgc.presencia.domain.account.UserAccount;
-import software.ulpgc.presencia.domain.error.InvalidCredentialsException;
-import software.ulpgc.presencia.domain.error.InvalidDataException;
-import software.ulpgc.presencia.domain.error.SetupAlreadyDoneException;
-import software.ulpgc.presencia.domain.error.UnauthenticatedException;
+import software.ulpgc.presencia.domain.error.DomainException;
+import software.ulpgc.presencia.domain.error.ErrorCode;
 import software.ulpgc.presencia.domain.person.Person;
 
 import java.security.SecureRandom;
@@ -67,7 +65,7 @@ public final class AuthenticationService implements AuthenticationUseCase {
             PasswordPolicy.check(password);
             UserAccount account = transactions.inTransaction(() -> {
                 if (!setupRequired())
-                    throw new SetupAlreadyDoneException("Ya existe una cuenta de responsable; inicia sesion");
+                    throw new DomainException(ErrorCode.SETUP_ALREADY_DONE, "Ya existe una cuenta de responsable; inicia sesion");
                 UserAccount created = new UserAccount(username, Role.ADMIN, null, hasher.hash(password), clock.instant());
                 accounts.save(created);
                 audit.record(created.username(), "ACCOUNT_CREATED", "account", created.username(),
@@ -84,11 +82,11 @@ public final class AuthenticationService implements AuthenticationUseCase {
     public LoginResult login(String username, char[] password) {
         try {
             if (username == null || username.isBlank() || password == null || password.length == 0)
-                throw new InvalidDataException("Indica usuario y clave");
+                throw new DomainException(ErrorCode.INVALID_DATA, "Indica usuario y clave");
             Optional<UserAccount> account = accounts.findByUsername(username.strip().toLowerCase());
             // Se calcula el hash aunque el usuario no exista para no revelarlo por el tiempo de respuesta.
             boolean valid = hasher.matches(password, account.map(UserAccount::passwordHash).orElse(dummyHash));
-            if (account.isEmpty() || !valid) throw new InvalidCredentialsException("Usuario o clave incorrectos");
+            if (account.isEmpty() || !valid) throw new DomainException(ErrorCode.INVALID_CREDENTIALS, "Usuario o clave incorrectos");
             return open(account.get());
         } finally {
             clear(password);
@@ -102,16 +100,16 @@ public final class AuthenticationService implements AuthenticationUseCase {
 
     @Override
     public Principal authenticate(String token) {
-        if (token == null || token.isBlank()) throw new UnauthenticatedException("Inicia sesion para continuar");
+        if (token == null || token.isBlank()) throw new DomainException(ErrorCode.UNAUTHENTICATED, "Inicia sesion para continuar");
         Session session = sessions.find(token)
-                .orElseThrow(() -> new UnauthenticatedException("La sesion no es valida o ha caducado"));
+                .orElseThrow(() -> new DomainException(ErrorCode.UNAUTHENTICATED, "La sesion no es valida o ha caducado"));
         if (!clock.instant().isBefore(session.expiresAt())) {
             sessions.delete(token);
-            throw new UnauthenticatedException("La sesion ha caducado; vuelve a iniciar sesion");
+            throw new DomainException(ErrorCode.UNAUTHENTICATED, "La sesion ha caducado; vuelve a iniciar sesion");
         }
         UserAccount account = accounts.findByUsername(session.username()).orElseThrow(() -> {
             sessions.delete(token);
-            return new UnauthenticatedException("La cuenta ya no existe");
+            return new DomainException(ErrorCode.UNAUTHENTICATED, "La cuenta ya no existe");
         });
         return principal(account);
     }

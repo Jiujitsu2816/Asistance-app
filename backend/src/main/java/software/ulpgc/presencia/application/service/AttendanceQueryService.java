@@ -5,13 +5,11 @@ import software.ulpgc.presencia.application.port.out.AssignmentRepository;
 import software.ulpgc.presencia.application.port.out.AuditTrail;
 import software.ulpgc.presencia.application.port.out.ClockEventRepository;
 import software.ulpgc.presencia.application.port.out.HolidayRepository;
-import software.ulpgc.presencia.application.port.out.JustificationRepository;
 import software.ulpgc.presencia.application.port.out.PersonRepository;
 import software.ulpgc.presencia.application.port.out.ScheduleRepository;
 import software.ulpgc.presencia.application.port.out.WorkplaceRepository;
-import software.ulpgc.presencia.domain.assignment.ScheduleAssignment;
-import software.ulpgc.presencia.domain.workplace.Workplace;
 import software.ulpgc.presencia.domain.Require;
+import software.ulpgc.presencia.domain.assignment.ScheduleAssignment;
 import software.ulpgc.presencia.domain.attendance.AttendanceEvaluator;
 import software.ulpgc.presencia.domain.attendance.DailyAttendance;
 import software.ulpgc.presencia.domain.attendance.Incident;
@@ -20,6 +18,7 @@ import software.ulpgc.presencia.domain.attendance.PresenceState;
 import software.ulpgc.presencia.domain.audit.AuditEntry;
 import software.ulpgc.presencia.domain.clocking.ClockEvent;
 import software.ulpgc.presencia.domain.person.Person;
+import software.ulpgc.presencia.domain.workplace.Workplace;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -38,9 +37,9 @@ public final class AttendanceQueryService implements AttendanceQueryUseCase {
 
     public AttendanceQueryService(PersonRepository people, ScheduleRepository schedules,
                                   AssignmentRepository assignments, HolidayRepository holidays,
-                                  ClockEventRepository events, JustificationRepository justifications,
+                                  ClockEventRepository events,
                                   WorkplaceRepository workplaces, AuditTrail audit, Clock clock, ZoneId zone) {
-        this.context = new AttendanceContext(people, schedules, assignments, holidays, events, justifications, zone);
+        this.context = new AttendanceContext(people, schedules, assignments, holidays, events, zone);
         this.events = events;
         this.workplaces = workplaces;
         this.audit = audit;

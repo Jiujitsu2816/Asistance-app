@@ -12,12 +12,10 @@ import software.ulpgc.presencia.domain.workplace.Workplace;
 import software.ulpgc.presencia.application.port.out.AuditTrail;
 import software.ulpgc.presencia.application.port.out.ClockEventRepository;
 import software.ulpgc.presencia.application.port.out.HolidayRepository;
-import software.ulpgc.presencia.application.port.out.JustificationRepository;
 import software.ulpgc.presencia.application.port.out.PersonRepository;
 import software.ulpgc.presencia.application.port.out.ScheduleRepository;
 import software.ulpgc.presencia.application.port.out.Transactions;
 import software.ulpgc.presencia.domain.assignment.ScheduleAssignment;
-import software.ulpgc.presencia.domain.attendance.IncidentJustification;
 import software.ulpgc.presencia.domain.audit.AuditEntry;
 import software.ulpgc.presencia.domain.calendar.Holiday;
 import software.ulpgc.presencia.domain.clocking.ClockEvent;
@@ -34,7 +32,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Adaptadores de salida en memoria. Demuestran que los casos de uso dependen solo de los
@@ -46,7 +43,6 @@ public final class InMemoryAdapters {
     public final List<ScheduleAssignment> assignments = new ArrayList<>();
     public final Map<LocalDate, Holiday> holidays = new LinkedHashMap<>();
     public final List<ClockEvent> events = new ArrayList<>();
-    public final Map<String, IncidentJustification> justifications = new LinkedHashMap<>();
     public final List<AuditEntry> audit = new ArrayList<>();
     public final Map<String, Workplace> workplaces = new LinkedHashMap<>();
     public final Map<String, UserAccount> accounts = new LinkedHashMap<>();
@@ -102,21 +98,6 @@ public final class InMemoryAdapters {
                         .filter(e -> personId == null || e.personId().equals(personId))
                         .filter(e -> !e.occurredAt().isBefore(from) && e.occurredAt().isBefore(to))
                         .sorted(Comparator.comparing(ClockEvent::occurredAt)).toList();
-            }
-        };
-    }
-
-    public JustificationRepository justificationRepository() {
-        return new JustificationRepository() {
-            public void save(IncidentJustification j) { justifications.put(j.incidentKey(), j); }
-
-            public Optional<IncidentJustification> findByKey(String key) {
-                return Optional.ofNullable(justifications.get(key));
-            }
-
-            public Map<String, IncidentJustification> findByPerson(String personId) {
-                return justifications.values().stream().filter(j -> j.personId().equals(personId))
-                        .collect(Collectors.toMap(IncidentJustification::incidentKey, j -> j));
             }
         };
     }

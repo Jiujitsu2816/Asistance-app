@@ -9,9 +9,8 @@ import software.ulpgc.presencia.application.port.out.Transactions;
 import software.ulpgc.presencia.application.port.out.UserAccountRepository;
 import software.ulpgc.presencia.domain.account.PasswordPolicy;
 import software.ulpgc.presencia.domain.account.UserAccount;
-import software.ulpgc.presencia.domain.error.AccountAlreadyExistsException;
-import software.ulpgc.presencia.domain.error.AccountNotFoundException;
-import software.ulpgc.presencia.domain.error.PersonNotFoundException;
+import software.ulpgc.presencia.domain.error.DomainException;
+import software.ulpgc.presencia.domain.error.ErrorCode;
 
 import java.time.Clock;
 import java.util.Arrays;
@@ -47,12 +46,12 @@ public final class AccountAdministrationService implements AccountAdministration
                     hasher.hash(command.password()), clock.instant());
             return transactions.inTransaction(() -> {
                 if (accounts.findByUsername(account.username()).isPresent())
-                    throw new AccountAlreadyExistsException("Ya existe el usuario '" + account.username() + "'");
+                    throw new DomainException(ErrorCode.ACCOUNT_ALREADY_EXISTS, "Ya existe el usuario '" + account.username() + "'");
                 if (account.personId() != null) {
                     if (people.findById(account.personId()).isEmpty())
-                        throw new PersonNotFoundException("No existe ninguna persona con id '" + account.personId() + "'");
+                        throw new DomainException(ErrorCode.PERSON_NOT_FOUND, "No existe ninguna persona con id '" + account.personId() + "'");
                     if (accounts.findAll().stream().anyMatch(a -> account.personId().equals(a.personId())))
-                        throw new AccountAlreadyExistsException("La persona '" + account.personId() + "' ya tiene cuenta");
+                        throw new DomainException(ErrorCode.ACCOUNT_ALREADY_EXISTS, "La persona '" + account.personId() + "' ya tiene cuenta");
                 }
                 accounts.save(account);
                 audit.record(Actors.normalize(command.actor()), "ACCOUNT_CREATED", "account", account.username(),
@@ -77,7 +76,7 @@ public final class AccountAdministrationService implements AccountAdministration
             String hash = hasher.hash(password);
             transactions.inTransaction(() -> {
                 if (accounts.findByUsername(name).isEmpty())
-                    throw new AccountNotFoundException("No existe el usuario '" + name + "'");
+                    throw new DomainException(ErrorCode.ACCOUNT_NOT_FOUND, "No existe el usuario '" + name + "'");
                 accounts.updatePassword(name, hash);
                 audit.record(Actors.normalize(actor), "PASSWORD_RESET", "account", name, "Clave cambiada");
                 return null;

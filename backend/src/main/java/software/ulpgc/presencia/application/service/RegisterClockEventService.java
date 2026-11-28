@@ -13,9 +13,8 @@ import software.ulpgc.presencia.domain.clocking.ClockEvent;
 import software.ulpgc.presencia.domain.clocking.ClockEventType;
 import software.ulpgc.presencia.domain.clocking.ClockSource;
 import software.ulpgc.presencia.domain.clocking.ClockingPolicy;
-import software.ulpgc.presencia.domain.error.DateOutOfPeriodException;
-import software.ulpgc.presencia.domain.error.PersonNotFoundException;
-import software.ulpgc.presencia.domain.error.ScheduleNotAssignedException;
+import software.ulpgc.presencia.domain.error.DomainException;
+import software.ulpgc.presencia.domain.error.ErrorCode;
 import software.ulpgc.presencia.domain.person.Person;
 
 import java.time.Clock;
@@ -61,7 +60,7 @@ public final class RegisterClockEventService implements RegisterClockEventUseCas
         ClockEventType type = Require.present(command.type(), "type");
         ClockSource source = Require.present(command.source(), "source");
         Person person = people.findById(personId)
-                .orElseThrow(() -> new PersonNotFoundException("No existe ninguna persona con id '" + personId + "'"));
+                .orElseThrow(() -> new DomainException(ErrorCode.PERSON_NOT_FOUND, "No existe ninguna persona con id '" + personId + "'"));
         // Los fichajes se guardan con precision de segundos.
         Instant now = clock.instant().truncatedTo(ChronoUnit.SECONDS);
         Instant at = command.timestamp() == null ? now : command.timestamp().truncatedTo(ChronoUnit.SECONDS);
@@ -89,8 +88,8 @@ public final class RegisterClockEventService implements RegisterClockEventUseCas
     private ScheduleAssignment requireAssignment(Person person, LocalDate date) {
         ScheduleAssignments resolved = new ScheduleAssignments(person, assignments.findAll());
         if (resolved.isEmpty())
-            throw new ScheduleNotAssignedException("La persona '" + person.id() + "' no tiene ningun horario asignado");
-        return resolved.on(date).orElseThrow(() -> new DateOutOfPeriodException("El " + date
+            throw new DomainException(ErrorCode.SCHEDULE_NOT_ASSIGNED, "La persona '" + person.id() + "' no tiene ningun horario asignado");
+        return resolved.on(date).orElseThrow(() -> new DomainException(ErrorCode.DATE_OUT_OF_PERIOD, "El " + date
                 + " esta fuera de los periodos de horario asignados a '" + person.id() + "'"));
     }
 }
